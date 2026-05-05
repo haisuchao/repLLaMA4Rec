@@ -1,0 +1,361 @@
+# Data Preprocessing Pipeline
+
+Pipeline tiền xử lý dữ liệu cho bài toán **Sequential Recommendation**, hỗ trợ xuất song song hai định dạng để huấn luyện và so sánh hai mô hình:
+
+- **repLLaMA** (thư viện Tevatron v2) — mô hình retrieval dựa trên LLM
+- **SASRec** (thư viện RecBole) — mô hình sequential recommendation dựa trên Self-Attention
+
+---
+
+## Mục lục
+
+1. [Cấu trúc thư mục](#1-cấu-trúc-thư-mục)
+2. [Cài đặt](#2-cài-đặt)
+3. [Chuẩn bị dữ liệu thô](#3-chuẩn-bị-dữ-liệu-thô)
+4. [Quy trình tiền xử lý](#4-quy-trình-tiền-xử-lý)
+5. [Định dạng output](#5-định-dạng-output)
+6. [Cách chạy](#6-cách-chạy)
+7. [So sánh hai định dạng](#7-so-sánh-hai-định-dạng)
+8. [Cấu hình nâng cao](#8-cấu-hình-nâng-cao)
+
+---
+
+## 1. Cấu trúc thư mục
+
+```
+dataset_pipeline/
+│
+├── preprocess.py        # Module tiền xử lý chung
+│                        #   - Load raw data (Amazon, MovieLens, Steam)
+│                        #   - 5-core filter
+│                        #   - Build user sequences
+│                        #   - Leave-one-out split
+│
+├── export_tevatron.py   # Xuất định dạng Tevatron v2 (repLLaMA)
+├── export_recbole.py    # Xuất định dạng RecBole (SASRec)
+├── run_all.py           # Entry point — chạy toàn bộ pipeline
+│
+├── raw/                 # Thư mục chứa dữ liệu thô (tự tạo)
+│   ├── reviews_Beauty_5.json.gz
+│   ├── meta_Beauty.json.gz
+│   └── ...
+│
+└── dataset/             # Thư mục output (tự sinh)
+    ├── tevatron/
+    │   └── <dataset>/
+    │       ├── corpus.jsonl
+    │       ├── train.jsonl
+    │       ├── valid.jsonl
+    │       └── test.jsonl
+    └── recbole/
+        └── <dataset>/
+            ├── <dataset>.inter
+            ├── <dataset>.item
+            └── sasrec_<dataset>.yaml
+```
+
+---
+
+## 2. Cài đặt
+
+```bash
+pip install pandas tqdm
+```
+
+---
+
+## 3. Chuẩn bị dữ liệu thô
+
+Pipeline hỗ trợ 4 dataset. Tải file về và đặt vào thư mục `raw/` theo cấu trúc dưới đây.
+
+### Amazon Beauty / Sports
+
+Tải tại: http://jmcauley.ucsd.edu/data/amazon/
+
+```
+raw/
+├── reviews_Beauty_5.json.gz
+├── meta_Beauty.json.gz
+├── reviews_Sports_and_Outdoors_5.json.gz
+└── meta_Sports_and_Outdoors.json.gz
+```
+
+Mỗi dòng trong file review là một JSON object:
+```json
+{
+  "reviewerID": "A1RSDE90N6RSZF",
+  "asin": "B00006L9LC",
+  "unixReviewTime": 1393632000
+}
+```
+
+### MovieLens 1M
+
+Tải tại: https://grouplens.org/datasets/movielens/1m/
+
+```
+raw/ml-1m/
+├── ratings.dat      # UserID::MovieID::Rating::Timestamp
+└── movies.dat       # MovieID::Title::Genres
+```
+
+### Steam
+
+Tải tại: https://cseweb.ucsd.edu/~jmcauley/datasets.html#steam_data
+
+```
+raw/
+├── steam_reviews.json.gz
+└── steam_games.json.gz
+```
+
+---
+
+## 4. Quy trình tiền xử lý
+
+Toàn bộ pipeline được thực hiện theo 5 bước, tuân theo chuẩn của **SASRec paper** (Kang & McAuley, 2018).
+
+### Bước 1 — Load dữ liệu thô
+
+Đọc file raw và chuẩn hoá về cấu trúc thống nhất gồm 3 trường:
+
+| Trường | Kiểu | Mô tả |
+|---|---|---|
+| `user_id` | string | Định danh người dùng |
+| `item_id` | string | Định danh sản phẩm / phim / game |
+| `timestamp` | int | Thời điểm tương tác (Unix timestamp) |
+
+Ngoài ra, metadata của item (title) cũng được load để tạo text biểu diễn cho Tevatron.
+
+### Bước 2 — 5-core filter
+
+Lọc lặp đến khi tất cả **user** và **item** đều có tối thiểu 5 tương tác. Quá trình lặp vì sau khi loại item hiếm, một số user có thể mất đi tương tác và ngược lại.
+
+```
+Vòng lặp:
+  1. Loại item có < 5 tương tác
+  2. Loại user có < 5 tương tác
+  3. Lặp lại đến khi không còn thay đổi
+```
+
+> **Lưu ý:** Sau khi filter, một số user vẫn có thể có ít item hơn `CONTEXT_SIZE` do bỏ duplicate liên tiếp ở bước 3. Đây là các **cold-start users** và vẫn được giữ lại nếu sequence còn đủ `MIN_SEQ_LEN = 3` item.
+
+### Bước 3 — Xây dựng chuỗi tương tác
+
+Với mỗi user, sắp xếp các item đã tương tác theo thứ tự thời gian và loại bỏ các item trùng liên tiếp:
+
+```
+Raw interactions (chưa sort):
+  user_A: [(item3, t=5), (item1, t=2), (item1, t=3), (item2, t=8)]
+
+Sau sort theo timestamp:
+  user_A: [(item1, t=2), (item1, t=3), (item3, t=5), (item2, t=8)]
+
+Sau bỏ duplicate liên tiếp:
+  user_A: [item1, item3, item2]
+```
+
+Chỉ giữ lại user có sequence dài tối thiểu `MIN_SEQ_LEN = 3` item.
+
+### Bước 4 — Leave-one-out split
+
+Chiến lược chia dữ liệu theo **Leave-one-out** chuẩn của SASRec paper:
+
+```
+Sequence đầy đủ: [item_1, item_2, ..., item_{N-2}, item_{N-1}, item_N]
+                                             ↑              ↑         ↑
+                                          train           valid     test
+                                         positive        positive positive
+```
+
+| Split | Positive item | Context Tevatron | Full history RecBole |
+|---|---|---|---|
+| `train` | `item_{N-2}` | tối đa `CONTEXT_SIZE` item trước `item_{N-2}` | `item_1` → `item_{N-3}` |
+| `valid` | `item_{N-1}` | tối đa `CONTEXT_SIZE` item trước `item_{N-1}` | `item_1` → `item_{N-2}` |
+| `test`  | `item_N`     | tối đa `CONTEXT_SIZE` item trước `item_N`     | `item_1` → `item_{N-1}` |
+
+**Xử lý cold-start** (user có ít hơn `CONTEXT_SIZE + 3` item):
+
+```
+Sequence: [i1, i2, i3]  (N=3)
+  train → context = []            positive = i1  ← không có history
+  valid → context = [i1]          positive = i2
+  test  → context = [i1, i2]      positive = i3
+
+Sequence: [i1, i2, i3, i4]  (N=4)
+  train → context = [i1]          positive = i2
+  valid → context = [i1, i2]      positive = i3
+  test  → context = [i1, i2, i3]  positive = i4
+
+Sequence: [i1..i7]  (N=7, đủ history với CONTEXT_SIZE=3)
+  train → context = [i3, i4]      positive = i5
+  valid → context = [i4, i5]      positive = i6
+  test  → context = [i5, i6]      positive = i7
+```
+
+### Bước 5 — Xuất dữ liệu
+
+Từ cùng một kết quả tiền xử lý, xuất song song sang 2 định dạng:
+
+```
+Preprocessing result
+      ├──→ export_tevatron.py  →  dataset/tevatron/<dataset>/
+      └──→ export_recbole.py   →  dataset/recbole/<dataset>/
+```
+
+---
+
+## 5. Định dạng output
+
+### 5.1 Tevatron v2 — repLLaMA
+
+**`corpus.jsonl`** — mỗi dòng là một item trong toàn bộ dataset:
+
+```json
+{"docid": "B00006L9LC", "text": "Passage: Citre Shine Moisture Burst Shampoo"}
+```
+
+**`train.jsonl` / `valid.jsonl` / `test.jsonl`** — mỗi dòng là một query tương ứng với một user:
+
+```json
+{
+  "query_id": "A1RSDE90N6RSZF_train",
+  "query": "Query: Citre Shine Shampoo, Dove Body Wash, Bonne Bell Lotion </s>",
+  "positive_passages": [
+    {"docid": "B0012Y0ZG2", "title": "", "text": "Passage: Neutrogena T/Gel Shampoo"}
+  ],
+  "negative_passages": [
+    {"docid": "B00021DJ32", "title": "", "text": "Passage: Pantene Pro-V Shampoo"},
+    {"docid": "B0009RF9DW", "title": "", "text": "Passage: Head & Shoulders Shampoo"}
+  ]
+}
+```
+
+Quy tắc tạo query:
+- Prefix `"Query: "` và suffix `" </s>"` theo chuẩn repLLaMA
+- Các item trong history được nối bằng dấu `", "`
+- Context chỉ dùng tối đa `CONTEXT_SIZE = 3` item gần nhất
+- Cold-start không có history: `"Query: </s>"`
+
+Quy tắc negative sampling:
+- Mỗi query có `NUM_NEGATIVES = 50` negative passages
+- Sample ngẫu nhiên on-the-fly, loại trừ tất cả item user đã tương tác
+- Không pre-compute vào RAM để tránh OOM với dataset lớn
+
+### 5.2 RecBole — SASRec
+
+**`<dataset>.inter`** — toàn bộ lịch sử tương tác theo thứ tự thời gian (tab-separated):
+
+```
+user_id:token   item_id:token   timestamp:float
+A1RSDE90N6RSZF  B00006L9LC      0.0
+A1RSDE90N6RSZF  B0012Y0ZG2      1.0
+A1RSDE90N6RSZF  B00021DJ32      2.0
+```
+
+**`<dataset>.item`** — metadata của item (tab-separated):
+
+```
+item_id:token   item_title:token_seq        item_brand:token  item_category:token_seq
+B00006L9LC      Citre Shine Shampoo         Unilever          Beauty Hair Care
+B0012Y0ZG2      Neutrogena T/Gel Shampoo    Neutrogena        Beauty Hair Care
+```
+
+**`sasrec_<dataset>.yaml`** — config SASRec tự sinh với `MAX_ITEM_LIST_LENGTH` bằng độ dài sequence lớn nhất, cho phép SASRec dùng **toàn bộ history**:
+
+```yaml
+MAX_ITEM_LIST_LENGTH: 52   # = max sequence length trong dataset
+
+eval_args:
+  split: {LS: valid_and_test}  # item cuối = test, áp chót = valid
+  order: TO                    # Time Order — giữ thứ tự thời gian
+  mode: full                   # Rank trên toàn bộ items
+```
+
+---
+
+## 6. Cách chạy
+
+```bash
+# Chạy 1 dataset
+python run_all.py beauty
+
+# Chạy nhiều dataset cùng lúc
+python run_all.py beauty sports ml-1m
+
+# Chạy tất cả dataset được hỗ trợ
+python run_all.py --all
+```
+
+Output mẫu:
+
+```
+############################################################
+#  DATASET: BEAUTY
+############################################################
+
+── Tevatron export ──────────────────────────────────────
+  corpus:  100%|████████| 12101/12101 [00:02<00:00, 5234item/s]
+  train :  100%|████████|  2819/2819  [00:05<00:00,  521query/s]
+  valid :  100%|████████|  2819/2819  [00:04<00:00,  618query/s]
+  test  :  100%|████████|  2819/2819  [00:04<00:00,  601query/s]
+
+  Context window : up to 3 items (shorter for cold-start)
+  Cold-start     : 142 train queries with empty context
+  Negatives/query: 50 (sampled on-the-fly, no RAM overhead)
+  Output dir     : dataset/tevatron/beauty/
+
+── RecBole export ───────────────────────────────────────
+  .inter:  100%|████████|  2819/2819  [00:01<00:00, 1823user/s]
+  .item :  100%|████████| 12101/12101 [00:00<00:00, 9841item/s]
+
+  Full history   : YES (avg 8.3 items/user)
+  Output dir     : dataset/recbole/beauty/
+
+✓ beauty hoàn tất (45.2s)
+```
+
+---
+
+## 7. So sánh hai định dạng
+
+| | Tevatron (repLLaMA) | RecBole (SASRec) |
+|---|---|---|
+| **Biểu diễn user** | `CONTEXT_SIZE = 3` item gần nhất | Toàn bộ history |
+| **Lý do giới hạn** | Context length của LLM | Không giới hạn |
+| **Loại thông tin** | Text (title của item) | ID của item |
+| **Train/valid/test** | 3 file riêng biệt | RecBole tự chia từ `.inter` |
+| **Cách chia** | Leave-one-out thủ công | `LS: valid_and_test` |
+| **Evaluation** | FAISS search + TREC eval | RecBole built-in |
+| **Điểm mạnh** | Hiểu ngữ nghĩa qua text | Tận dụng full history |
+
+> **Đảm bảo so sánh công bằng:** Cả hai mô hình dùng cùng bộ dữ liệu sau filter, cùng chiến lược leave-one-out split, và cùng tập items để rank. Sự khác biệt duy nhất nằm ở cách biểu diễn user và kiến trúc mô hình — đây chính là điều cần so sánh.
+
+---
+
+## 8. Cấu hình nâng cao
+
+Các tham số chỉnh trong `preprocess.py`:
+
+| Tham số | Mặc định | Ý nghĩa |
+|---|---|---|
+| `MIN_INTERACTIONS` | `5` | Ngưỡng k-core filter |
+| `CONTEXT_SIZE` | `3` | Số item gần nhất dùng làm query trong Tevatron |
+| `MIN_SEQ_LEN` | `3` | Độ dài sequence tối thiểu để giữ user |
+
+Các tham số chỉnh trong `export_tevatron.py`:
+
+| Tham số | Mặc định | Ý nghĩa |
+|---|---|---|
+| `NUM_NEGATIVES` | `50` | Số negative sample mỗi query |
+
+Thêm dataset mới trong `preprocess.py`:
+
+```python
+DATASETS["my_dataset"] = {
+    "type":        "amazon",            # hoặc "movielens", "steam"
+    "review_file": "raw/reviews_My.json.gz",
+    "meta_file":   "raw/meta_My.json.gz",
+    "name":        "My Dataset",
+}
+```

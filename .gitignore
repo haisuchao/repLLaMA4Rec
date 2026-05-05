@@ -1,4 +1,6 @@
 __pycache__/
 output/
-dataset/
+dataset/__pycache__/
+dataset/dataset
+dataset/raw
 tevatron-env/
