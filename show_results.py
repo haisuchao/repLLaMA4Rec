@@ -104,9 +104,11 @@ def discover_results(output_dir: str = "./output") -> dict:
             model_tag = model_dir.name
 
             results_dir = model_dir / "embeddings" / "results"
-            # Ưu tiên: best checkpoint → zero-shot/manual → SASRec flat
+            # Ưu tiên: best → latest → base (zero-shot) → manual → SASRec flat
             candidates = [
                 results_dir / "eval_test_best.txt",
+                results_dir / "eval_test_latest.txt",
+                results_dir / "eval_test_base.txt",
                 results_dir / "eval_test.txt",
                 model_dir / "eval_test.txt",
             ]

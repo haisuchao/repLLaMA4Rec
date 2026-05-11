@@ -25,13 +25,16 @@ repLLaMA/
 │   ├── export_recbole.py       # Xuất định dạng RecBole (SASRec)
 │   ├── run_all.py              # Entry point chạy toàn bộ pipeline
 │   ├── raw/                    # Dữ liệu thô (tự tải về)
+│   ├── export_tevatron_aug.py  # Xuất training data với sliding window augmentation
 │   ├── dataset/
 │   │   ├── tevatron/           # Output cho repLLaMA
-│   │   │   └── <dataset>/
-│   │   │       ├── corpus.jsonl
-│   │   │       ├── train.jsonl
-│   │   │       ├── valid.jsonl
-│   │   │       └── test.jsonl
+│   │   │   ├── <dataset>/      # Data gốc (1 sample/user)
+│   │   │   │   ├── corpus.jsonl
+│   │   │   │   ├── train.jsonl
+│   │   │   │   ├── valid.jsonl
+│   │   │   │   └── test.jsonl
+│   │   │   └── <dataset>-aug/  # Data augmented (N-3 samples/user)
+│   │   │       └── train.jsonl (augmented), valid/test/corpus (giống gốc)
 │   │   └── recbole/            # Output cho SASRec
 │   │       └── <dataset>/
 │   │           ├── <dataset>.inter
@@ -43,23 +46,19 @@ repLLaMA/
 ├── tevatron-env/               # Virtual environment cho repLLaMA
 │
 ├── train.sh                    # Fine-tune repLLaMA
-├── encode_corpus.sh            # Encode toàn bộ corpus thành dense vectors
-├── encode_queries.sh           # Encode queries từ một split
-├── search.sh                   # FAISS search: query vs corpus
-├── evaluate.sh                 # Tính metrics (Recall, NDCG, MRR, MAP)
-├── select_best.sh              # Sweep checkpoints trên valid → evaluate test
-├── eval_one.sh                 # Evaluate một checkpoint bất kỳ
+├── eval.sh                     # Đánh giá model: best / latest / base / checkpoint-N
+├── show_results.py             # Tổng hợp và hiển thị bảng kết quả tất cả experiments
 │
 ├── ds_config.json              # DeepSpeed ZeRO-2 config
 └── output/                     # Kết quả training và embedding (tự sinh)
     └── <dataset>/
-        └── <model_tag>/
-            ├── checkpoint-*/   # LoRA checkpoints (lưu mỗi save_steps)
+        └── <model_tag[-variant]>/   # ví dụ: qwen3-embedding-0.6b, qwen3-embedding-0.6b-aug
+            ├── checkpoint-*/        # LoRA checkpoints (lưu mỗi save_steps)
             ├── adapter_model.safetensors  # Final model (= checkpoint cuối)
             └── embeddings/
-                ├── corpus/     # Dense vectors của corpus
-                ├── queries/    # Dense vectors của queries
-                └── results/    # Kết quả search và evaluation
+                ├── corpus/          # Dense vectors của corpus
+                ├── queries/         # Dense vectors của queries
+                └── results/         # Kết quả search và evaluation
 ```
 
 ---
@@ -92,8 +91,8 @@ Nếu cần tạo lại từ đầu:
 python3.11 -m venv tevatron-env
 source tevatron-env/bin/activate
 
-pip install torch==2.7.1+cu118 torchaudio torchvision \
-    --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.7.1+cu126 torchaudio torchvision \
+    --index-url https://download.pytorch.org/whl/cu126
 
 pip install nvidia-nccl-cu11          # bắt buộc — torch yêu cầu NCCL
 pip install deepspeed==0.18.9
@@ -255,79 +254,98 @@ Activate môi trường trước khi chạy bất kỳ script nào:
 source tevatron-env/bin/activate
 ```
 
-### 4.1 Tham số chung của các scripts
+### 4.1 Tham số của các scripts
 
-| Tham số | Scripts | Giá trị | Mặc định |
-|---|---|---|---|
-| `dataset` | tất cả | `beauty` \| `sports` \| `ml-1m` \| `steam` | bắt buộc |
-| `model` | tất cả | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
-| `train_group_size` | `train.sh` | số nguyên ≥ 2 | `8` |
-| `split` | `encode_queries`, `search`, `evaluate`, `eval_one` | `train` \| `valid` \| `test` | `test` |
-| `checkpoint` | `eval_one.sh` | `checkpoint-N` hoặc `final` | bắt buộc |
-| `metric` | `select_best.sh` | `ndcg_cut_10` \| `recall_10` \| ... | `ndcg_cut_10` |
+**`train.sh`** — Fine-tune model:
+
+```
+./train.sh <dataset> [model] [train_group_size] [variant]
+```
+
+| Tham số | Giá trị | Mặc định |
+|---|---|---|
+| `dataset` | `beauty` \| `sports` \| `ml-1m` \| `steam` | bắt buộc |
+| `model` | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
+| `train_group_size` | số nguyên ≥ 2 (1 positive + N negatives) | `8` |
+| `variant` | hậu tố experiment, ví dụ `aug` | rỗng |
+
+**`eval.sh`** — Đánh giá model (fine-tuned hoặc base):
+
+```
+./eval.sh <dataset> [checkpoint] [model] [split] [variant]
+```
+
+| `checkpoint` | Hành động | Output |
+|---|---|---|
+| `best` *(mặc định)* | Sweep checkpoints trên valid → chọn tốt nhất theo `ndcg_10` → evaluate | `eval_<split>_best.txt` |
+| `latest` | Final model sau training, không sweep (nhanh) | `eval_<split>_latest.txt` |
+| `base` | Base model **không fine-tune** (zero-shot baseline) — bỏ qua `variant` | `eval_<split>.txt` trong thư mục `-zeroshot` |
+| `checkpoint-N` | Checkpoint cụ thể (debug) | `eval_<split>_checkpoint-N.txt` |
+
+| Tham số | Giá trị | Mặc định |
+|---|---|---|
+| `split` | `valid` \| `test` | `test` |
+| `variant` | hậu tố model dir | rỗng |
+
+Khi truyền `variant`, cả `train.sh` và `eval.sh` đều dùng:
+- `train.sh`: đọc data từ `dataset/tevatron/<dataset>-<variant>/`, lưu model vào `output/<dataset>/<model_tag>-<variant>/`
+- `eval.sh`: tìm model tại `output/<dataset>/<model_tag>-<variant>/`
 
 ### 4.2 Workflow khuyến nghị
 
 ```bash
-# Bước 1: Fine-tune
-./train.sh <dataset> [model] [train_group_size]
+source tevatron-env/bin/activate
 
-# Bước 2: Chọn checkpoint tốt nhất trên valid → evaluate test tự động
-./select_best.sh <dataset> [model] [metric]
+# Bước 1: Fine-tune
+./train.sh beauty
+
+# Bước 2: Tìm best checkpoint → kết quả test (workflow chính)
+./eval.sh beauty
 ```
 
-### 4.3 Evaluate thủ công
+### 4.3 Các cách chạy eval.sh
 
 ```bash
-# Evaluate một checkpoint cụ thể (nhanh, tiện khi debug)
-./eval_one.sh <dataset> <checkpoint> [model] [split]
+# Tìm best checkpoint tự động (khuyến nghị cho kết quả chính thức)
+./eval.sh beauty
 
-# Ví dụ:
-./eval_one.sh beauty checkpoint-600
-./eval_one.sh beauty checkpoint-600 Qwen/Qwen3-Embedding-0.6B valid
-./eval_one.sh beauty final
+# Evaluate final model nhanh (không sweep checkpoints)
+./eval.sh beauty latest
 
-# Pipeline thủ công từng bước:
-./encode_corpus.sh  <dataset> [model]
-./encode_queries.sh <dataset> [model] [split]
-./search.sh         <dataset> [model] [split]
-./evaluate.sh       <dataset> [model] [split]
+# Zero-shot baseline — base model không fine-tune
+./eval.sh beauty base
+
+# Debug một checkpoint cụ thể
+./eval.sh beauty checkpoint-1000
+./eval.sh beauty checkpoint-1000 Qwen/Qwen3-Embedding-0.6B valid
+
+# Augmented experiment
+./eval.sh beauty best Qwen/Qwen3-Embedding-0.6B test aug
+./eval.sh beauty latest Qwen/Qwen3-Embedding-0.6B test aug
 ```
 
-Khi nhập checkpoint không đúng, `eval_one.sh` tự liệt kê các checkpoint hiện có:
-```
-Lỗi: Không tìm thấy checkpoint tại ./output/beauty/qwen3-embedding-0.6b/checkpoint-999
-
-Các checkpoint hiện có:
-  checkpoint-200
-  checkpoint-400
-  ...
-  final
-```
+Khi checkpoint không tồn tại, `eval.sh` tự liệt kê các checkpoint hiện có.
 
 ### 4.4 Ví dụ chạy đầy đủ cho Beauty
 
 ```bash
 source tevatron-env/bin/activate
 
-# Train với 31 negatives/query thay vì 7 mặc định
 ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 32
-
-# Tìm best checkpoint → kết quả test
-./select_best.sh beauty
+./eval.sh beauty
 ```
 
 Output:
 ```
 output/beauty/qwen3-embedding-0.6b/
-├── checkpoint-200/ ... checkpoint-2097/   # LoRA checkpoints
+├── checkpoint-*/                          # LoRA checkpoints
 └── embeddings/results/
-    ├── checkpoint_selection.log           # Bảng so sánh valid metric
-    ├── eval_test_best.txt                 # Kết quả test của best checkpoint
-    └── eval_test_checkpoint-600.txt       # Kết quả từ eval_one.sh (nếu có)
+    ├── checkpoint_selection.log           # Bảng valid metric của từng checkpoint
+    ├── eval_test_best.txt                 # Kết quả test của best checkpoint ← show_results.py đọc file này
+    └── eval_test_latest.txt              # Kết quả test của final model (nếu chạy --latest)
 ```
 
-### 4.5 Cấu hình training (`train.sh`)
+### 4.5 Cấu hình training
 
 | Tham số | Giá trị mặc định | Ghi chú |
 |---|---|---|
@@ -354,7 +372,57 @@ và tăng `gradient_accumulation_steps` để giữ nguyên effective batch size
 | 16 | 15 | 2 | 16 |
 | 32 | 31 | 1 | 32 |
 
-### 4.6 Về `--append_eos_token` và `</s>` trong data
+### 4.6 Zero-shot evaluation (không fine-tune, không training)
+
+Dùng `checkpoint=base` trong `eval.sh` — không cần training, không cần checkpoint:
+
+```bash
+./eval.sh beauty base
+./eval.sh beauty base Qwen/Qwen3-Embedding-0.6B valid
+```
+
+Kết quả lưu tại `output/<dataset>/<model_tag>-zeroshot/embeddings/results/eval_test.txt`.  
+Corpus được **cache**: lần đầu encode xong, chạy lại với split khác sẽ bỏ qua bước encode corpus.
+
+### 4.7 Data augmentation — sliding window training
+
+Tạo nhiều training samples/user bằng cách trượt cửa sổ context qua toàn bộ history:
+
+```bash
+# Bước 1: Tạo augmented data (window_size mặc định = 3)
+cd dataset
+python export_tevatron_aug.py beauty
+python export_tevatron_aug.py sports
+python export_tevatron_aug.py ml-1m --max_aug_per_user 20  # giới hạn với ML-1M (avg=165)
+cd ..
+
+# Bước 2: Train với augmented data
+./train.sh beauty Qwen/Qwen3-Embedding-0.6B 8 aug
+
+# Bước 3: Evaluate
+./select_best.sh beauty Qwen/Qwen3-Embedding-0.6B ndcg_10 aug
+```
+
+So sánh với training thông thường (1 sample/user):
+
+| | Standard | Augmented (window=3) |
+|---|---|---|
+| Samples/user | 1 | N−3 (trung bình ~7 với Beauty) |
+| Training samples (Beauty) | ~22k | ~154k |
+| Thư mục data | `beauty/` | `beauty-aug/` |
+| Thư mục model | `qwen3-embedding-0.6b/` | `qwen3-embedding-0.6b-aug/` |
+
+**Tùy chọn window size:** Thử window lớn hơn để tăng context length:
+```bash
+cd dataset
+python export_tevatron_aug.py beauty --window_size 5 --tag aug-w5
+cd ..
+./train.sh beauty Qwen/Qwen3-Embedding-0.6B 8 aug-w5
+```
+
+> **Lưu ý ML-1M:** avg sequence length = 165, nên dùng `--max_aug_per_user 20` để giới hạn ~20 samples/user và tránh training quá lâu.
+
+### 4.8 Về `--append_eos_token` và `</s>` trong data
 
 Query format trong jsonl: `"Query: item1, item2, item3 </s>"`
 
@@ -453,23 +521,67 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 - [x] Pipeline tiền xử lý dữ liệu (`dataset/`)
 - [x] Export Tevatron format (train/valid/test/corpus)
 - [x] Export RecBole format (.inter, .item, .yaml)
-- [x] Cài đặt và fix `tevatron-env` (NCCL + CUDA path)
-- [x] Scripts đầy đủ: `train.sh`, `encode_corpus.sh`, `encode_queries.sh`, `search.sh`, `evaluate.sh`, `select_best.sh`, `eval_one.sh`
-- [x] Tất cả scripts hỗ trợ tham số `dataset`, `model`; encode/evaluate hỗ trợ `split`
-- [x] `train.sh` hỗ trợ tham số `train_group_size` để điều chỉnh số negatives
+- [x] Cài đặt và fix `tevatron-env` (NCCL + CUDA path, torch cu126)
+- [x] Scripts gọn: `train.sh` và `eval.sh` (best/latest/base/checkpoint-N)
+- [x] Tất cả scripts hỗ trợ tham số `dataset`, `model`, `split`, `variant`
+- [x] `train.sh` hỗ trợ tham số `train_group_size` và `variant`
 - [x] `--append_eos_token` đồng nhất trên tất cả scripts (corpus + queries)
 - [x] Tất cả 3 dataset đã sẵn sàng (Beauty, Sports phiên bản 2014; ML-1M)
 - [x] `negative_passages` đã loại bỏ khỏi `valid.jsonl` và `test.jsonl` — tiết kiệm disk
 - [x] `MAX_ITEM_LIST_LENGTH` cố định ở 200 trong tất cả yaml và `export_recbole.py`
-- [x] Fix parser Amazon 2014: meta file dùng Python dict format (nháy đơn), không phải JSON — thêm fallback `ast.literal_eval` trong `preprocess.py`; data đã được tái tạo với title đúng
+- [x] Fix parser Amazon 2014: meta file dùng Python dict format (nháy đơn) — thêm fallback `ast.literal_eval` trong `preprocess.py`
+- [x] `eval_zeroshot.sh` — đánh giá base model không fine-tune
+- [x] `export_tevatron_aug.py` — data augmentation với sliding window, hỗ trợ `--window_size` và `--max_aug_per_user`
+- [x] `show_results.py` — tổng hợp kết quả tất cả experiments tự động, cập nhật README
 
 ### Cần làm
 - [ ] Fix CUDA trong conda env `serec` để chạy SASRec trên GPU
-- [ ] Chạy thực nghiệm đầy đủ và ghi lại kết quả so sánh
+- [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
 
 ### Cải tiến tiềm năng
-- [ ] Augment training data bằng cách dùng tất cả positions trong sequence (không chỉ N-2) để tạo nhiều training examples hơn và so sánh công bằng hơn với SASRec
 - [ ] Hard negative mining (BM25 hoặc từ top retrieved items) để cải thiện chất lượng training
+- [ ] **Ý tưởng 3: Thứ tự items trong query** — xem chi tiết bên dưới
+
+---
+
+## Ý tưởng 3: Thứ tự items trong query (chưa implement)
+
+Đây là ablation thú vị và ít được nghiên cứu. Hiện tại query được format theo thứ tự **chronological** (`i_{n-3}, i_{n-2}, i_{n-1}` → most recent ở cuối). Cần thử thêm:
+
+| Variant | Format query | Thư mục data |
+|---|---|---|
+| `chrono` *(hiện tại)* | `i_{n-3}, i_{n-2}, i_{n-1}` | `beauty/` |
+| `reversed` | `i_{n-1}, i_{n-2}, i_{n-3}` | `beauty-reversed/` |
+| `random` | shuffle mỗi lần | `beauty-random/` |
+
+### Cơ chế ảnh hưởng (last pooling + left-padding)
+
+Với Qwen3 dùng **causal attention + last pooling**, token cuối `<|im_end|>` attend đến toàn bộ token trước nó. Về lý thuyết có thể học từ bất kể thứ tự, nhưng thực tế causal LLMs bị ảnh hưởng bởi **"lost in the middle"** — token ở giữa sequence ít được chú ý hơn. Với `CONTEXT_SIZE=3` (rất ngắn), effect này có thể không đáng kể nhưng vẫn đáng kiểm tra.
+
+### Dự đoán
+
+- **Reversed ≈ Chronological**: Model dùng global attention qua EOS token → thứ tự ít quan trọng
+- **Reversed tốt hơn Chronological**: Model có recency bias, item gần nhất ở đầu được chú ý hơn → hint để thiết kế query format tốt hơn
+- **Random ≈ Chronological/Reversed**: Model làm "bag of items" retrieval, không học sequential pattern
+- **Random tệ hơn nhiều**: Thứ tự thực sự quan trọng, model học được sequential patterns từ LLM pre-training
+
+### Implement
+
+Chỉ cần sửa hàm `build_query()` trong `export_tevatron.py` và `export_tevatron_aug.py`:
+
+```python
+# Chronological (hiện tại)
+"Query: " + ", ".join(context_texts) + " </s>"
+
+# Reversed
+"Query: " + ", ".join(reversed(context_texts)) + " </s>"
+
+# Random (dùng random.shuffle — nhớ set seed cho reproducibility)
+random.shuffle(context_texts)
+"Query: " + ", ".join(context_texts) + " </s>"
+```
+
+Export ra thư mục riêng (ví dụ `beauty-reversed/`, `beauty-random/`) → train với `variant=reversed` hoặc `variant=random` → so sánh qua `show_results.py`.
 
 ---
 

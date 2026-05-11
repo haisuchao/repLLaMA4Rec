@@ -2,20 +2,22 @@
 
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
-  echo "Cách sử dụng: ./train.sh <dataset> [model] [train_group_size]"
+  echo "Cách sử dụng: ./train.sh <dataset> [model] [train_group_size] [variant]"
   echo "  dataset          : beauty | sports | ml-1m | steam"
   echo "  model            : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
   echo "  train_group_size : số passages/query = 1 positive + N negatives (mặc định: 8)"
-  echo "                     tối đa = NUM_NEGATIVES + 1 (hiện tại: 51)"
-  echo "                     lưu ý: tăng giá trị này sẽ tăng VRAM usage"
+  echo "  variant          : hậu tố cho data dir và model output dir (mặc định: rỗng)"
+  echo "                     ví dụ: 'aug' → dùng data từ beauty-aug/, lưu vào qwen3-...-aug/"
   echo "Ví dụ: ./train.sh beauty"
   echo "Ví dụ: ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 16"
+  echo "Ví dụ: ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 8 aug"
   exit 1
 fi
 
 dataset=$1
 model=${2:-"Qwen/Qwen3-Embedding-0.6B"}
 train_group_size=${3:-8}
+variant=${4:-""}
 
 # Điều chỉnh batch size theo kích thước model để tránh OOM
 case "${model}" in
@@ -46,8 +48,9 @@ esac
 
 BASE_MODEL="${model}"
 MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
+[ -n "${variant}" ] && MODEL_TAG="${MODEL_TAG}-${variant}"
 LORA_DIR="./output/${dataset}/${MODEL_TAG}"
-DATA_DIR="dataset/dataset/tevatron/${dataset}"
+DATA_DIR="dataset/dataset/tevatron/${dataset}${variant:+-${variant}}"
 TRAIN_PATH="${DATA_DIR}/train.jsonl"
 CORPUS_PATH="${DATA_DIR}/corpus.jsonl"
 
