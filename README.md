@@ -409,7 +409,45 @@ Cả hai model đều dùng:
 
 ---
 
-## 7. Tình trạng hiện tại
+## 7. Kết quả thực nghiệm
+
+Cập nhật bảng bằng lệnh:
+
+```bash
+python show_results.py                 # Chỉ in ra terminal
+python show_results.py --update-readme # In + ghi vào README này
+```
+
+Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_test.txt` với format `<metric>  all  <value>`.
+
+<!-- RESULTS_START -->
+### BEAUTY
+
+| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Qwen3-0.6B (zero-shot) | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
+| Qwen3-0.6B (fine-tuned) | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
+| Llama-3.2-1B (zero-shot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
+| Llama-3.2-1B (fine-tuned) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
+
+### SPORTS
+
+| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Qwen3-0.6B (zero-shot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
+| Llama-3.2-1B (zero-shot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
+
+### ML-1M
+
+| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Qwen3-0.6B (fine-tuned) | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
+
+<!-- RESULTS_END -->
+
+---
+
+## 8. Tình trạng hiện tại
 
 ### Đã hoàn thành
 - [x] Pipeline tiền xử lý dữ liệu (`dataset/`)
@@ -435,7 +473,7 @@ Cả hai model đều dùng:
 
 ---
 
-## 8. Ghi chú kỹ thuật
+## 9. Ghi chú kỹ thuật
 
 ### Thư mục gốc `output/` chứa model gì?
 

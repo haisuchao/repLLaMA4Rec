@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "../MiaSRec"
+		},
+		{
+			"path": "../BERT4Rec"
+		},
+		{
+			"path": "../TALLRec"
+		},
+		{
+			"path": "../recbole"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../../Amazon"
+		}
+	],
+	"settings": {}
+}

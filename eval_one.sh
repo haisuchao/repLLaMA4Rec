@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 if [ -z "$1" ] || [ -z "$2" ]; then
   echo "Lỗi: Thiếu tham số!"
@@ -19,6 +20,15 @@ dataset=$1
 checkpoint=$2
 model=${3:-"Qwen/Qwen3-Embedding-0.6B"}
 split=${4:-test}
+
+case "${model}" in
+  *Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*)
+    eval_batch=16
+    ;;
+  *)
+    eval_batch=64
+    ;;
+esac
 
 case "$dataset" in
   beauty|sports|ml-1m|steam) ;;
@@ -94,7 +104,7 @@ else
     --padding_side left \
     --append_eos_token \
     --normalize \
-    --per_device_eval_batch_size 64 \
+    --per_device_eval_batch_size ${eval_batch} \
     --passage_max_len 196 \
     --dataset_name json \
     --dataset_path ${DATA_DIR}/corpus.jsonl \

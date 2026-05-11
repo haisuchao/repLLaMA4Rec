@@ -17,6 +17,20 @@ dataset=$1
 model=${2:-"Qwen/Qwen3-Embedding-0.6B"}
 train_group_size=${3:-8}
 
+# Điều chỉnh batch size theo kích thước model để tránh OOM
+case "${model}" in
+  *Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*)
+    per_device_batch=1
+    grad_accum=32
+    eval_batch=16
+    ;;
+  *)
+    per_device_batch=4
+    grad_accum=8
+    eval_batch=64
+    ;;
+esac
+
 case "$dataset" in
   beauty|sports|ml-1m|steam)
     echo "Dataset          : ${dataset}"
@@ -64,8 +78,8 @@ deepspeed --include localhost:0 --master_port 60000 \
   --append_eos_token \
   --normalize \
   --temperature 0.01 \
-  --per_device_train_batch_size 4 \
-  --gradient_accumulation_steps 8 \
+  --per_device_train_batch_size ${per_device_batch} \
+  --gradient_accumulation_steps ${grad_accum} \
   --gradient_checkpointing \
   --train_group_size ${train_group_size} \
   --learning_rate 1e-4 \

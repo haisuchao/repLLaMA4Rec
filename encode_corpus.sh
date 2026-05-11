@@ -13,6 +13,15 @@ fi
 dataset=$1
 model=${2:-"Qwen/Qwen3-Embedding-0.6B"}
 
+case "${model}" in
+  *Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*)
+    eval_batch=16
+    ;;
+  *)
+    eval_batch=64
+    ;;
+esac
+
 case "$dataset" in
   beauty|sports|ml-1m|steam)
     echo "Dataset : ${dataset}"
@@ -55,7 +64,7 @@ CUDA_VISIBLE_DEVICES=0 python -m tevatron.retriever.driver.encode \
   --padding_side left \
   --append_eos_token \
   --normalize \
-  --per_device_eval_batch_size 64 \
+  --per_device_eval_batch_size ${eval_batch} \
   --passage_max_len 196 \
   --dataset_name json \
   --dataset_path ${CORPUS_PATH} \
