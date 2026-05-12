@@ -43,10 +43,11 @@ repLLaMA/
 │   └── README.md               # Mô tả chi tiết pipeline tiền xử lý
 │
 ├── tevatron/                   # Thư viện Tevatron v2 (clone từ GitHub)
-├── tevatron-env/               # Virtual environment cho repLLaMA
+├── tevatron-env/               # Virtual environment (chứa cả Tevatron và RecBole)
 │
 ├── train.sh                    # Fine-tune repLLaMA
 ├── eval.sh                     # Đánh giá model: best / latest / base / checkpoint-N
+├── run_recbole.py              # Chạy bất kỳ model RecBole (SASRec, GRU4Rec, custom, ...)
 ├── show_results.py             # Tổng hợp và hiển thị bảng kết quả tất cả experiments
 │
 ├── ds_config.json              # DeepSpeed ZeRO-2 config
@@ -136,27 +137,26 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 # → True NVIDIA GeForce RTX 3060
 ```
 
-### 1.2 Môi trường SASRec (RecBole)
+### 1.2 Môi trường RecBole (SASRec và các model khác)
 
-Dùng conda env `serec` đã có sẵn trên máy:
+RecBole được cài **chung trong `tevatron-env`** — không cần conda env riêng.
 
 ```bash
-conda activate serec
+source tevatron-env/bin/activate
 python -c "import recbole; print(recbole.__version__)"
-# → 1.2.0
+# → 1.2.1
 ```
 
-Nếu cần tạo lại:
+Nếu cần cài lại:
 
 ```bash
-conda create -n serec python=3.9
-conda activate serec
-pip install torch==2.1.0+cu118 --index-url https://download.pytorch.org/whl/cu118
-pip install recbole==1.2.0
+source tevatron-env/bin/activate
+pip install recbole==1.2.1
 ```
 
-> **Lưu ý:** Nếu `torch.cuda.is_available()` trả về `False` trong conda env,
-> chạy lại: `pip install torch==2.1.0+cu118 --index-url https://download.pytorch.org/whl/cu118`
+> **Lưu ý — numpy 2.0 compatibility:** RecBole 1.2.x dùng các numpy aliases đã bị xóa
+> trong numpy 2.0 (`np.bool8`, `np.float_`, `np.unicode_`, ...). Script `run_recbole.py`
+> đã tích hợp sẵn compatibility patch — không cần làm gì thêm.
 
 ---
 
@@ -435,26 +435,62 @@ sequence sau khi tokenize, đảm bảo `last` pooling lấy đúng token đại
 
 ---
 
-## 5. SASRec — Training & Evaluation (RecBole)
+## 5. RecBole — Training & Evaluation
+
+Dùng script `run_recbole.py` từ thư mục root của project:
 
 ```bash
-conda activate serec
-cd /path/to/repLLaMA
+source tevatron-env/bin/activate
 
-python -c "
-from recbole.quick_start import run_recbole
-run_recbole(
-    model='SASRec',
-    config_file_list=['dataset/dataset/recbole/<dataset>/sasrec_<dataset>.yaml']
-)
-"
+# Chạy SASRec (sử dụng config yaml tự sinh)
+python run_recbole.py SASRec beauty
+python run_recbole.py SASRec sports
+python run_recbole.py SASRec ml-1m
+
+# Override config bất kỳ từ CLI
+python run_recbole.py SASRec beauty epochs=50 learning_rate=0.0005
+
+# Chạy model khác trong RecBole (dùng default config của RecBole)
+python run_recbole.py GRU4Rec beauty
+python run_recbole.py BERT4Rec beauty
+
+# Chạy model custom (đặt file trong recbole/, kế thừa SequentialRecommender)
+python run_recbole.py recbole.my_model.MyModel beauty
 ```
 
-Thay `<dataset>` bằng `beauty`, `sports`, hoặc `ml-1m`.
+Script tự động:
+- Load file `dataset/dataset/recbole/<dataset>/sasrec_<dataset>.yaml` nếu tồn tại
+- Set đúng `data_path` (tránh lỗi path khi chạy từ project root)
+- Patch numpy 2.0 compatibility trước khi import RecBole
 
-> **`MAX_ITEM_LIST_LENGTH` đã được cố định ở 200** trong tất cả yaml files và trong
-> `export_recbole.py`. SASRec chỉ nhìn thấy tối đa 200 item gần nhất của mỗi user,
-> tránh OOM với self-attention O(n²) trên sequences dài (ML-1M max=2277).
+### Model custom
+
+Đặt file `.py` trong thư mục `recbole/` (đã có `__init__.py`), kế thừa class RecBole:
+
+```python
+# recbole/my_model.py
+from recbole.model.sequential_recommender import SASRec
+
+class MyModel(SASRec):
+    def __init__(self, config, dataset):
+        super().__init__(config, dataset)
+        # override hoặc thêm logic
+```
+
+```bash
+python run_recbole.py recbole.my_model.MyModel beauty epochs=100
+```
+
+### Ghi chú kỹ thuật
+
+> **`MAX_ITEM_LIST_LENGTH: 200`** trong tất cả yaml. SASRec chỉ thấy tối đa 200 item
+> gần nhất, tránh OOM với self-attention O(n²) trên sequences dài (ML-1M max=2277).
+
+> **`train_neg_sample_args: ~`** bắt buộc khi dùng `loss_type: CE`. CE loss tự xử lý
+> negatives nội bộ (softmax trên toàn bộ items) — không được set negative sampling.
+
+> **`TIME_FIELD: timestamp` + `load_col`** bắt buộc để RecBole sort đúng thứ tự thời
+> gian. Thiếu hai dòng này sẽ gây `ValueError: [timestamp] is not exist in interaction`.
 
 ---
 
@@ -493,6 +529,7 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| SASRec | 0.0323 | 0.0548 | 0.0412 | 0.0824 | 0.0506 | 0.1198 | 0.0081 |
 | Qwen3-0.6B (zero-shot) | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
 | Qwen3-0.6B (fine-tuned) | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
 | Llama-3.2-1B (zero-shot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
@@ -530,12 +567,15 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 - [x] `negative_passages` đã loại bỏ khỏi `valid.jsonl` và `test.jsonl` — tiết kiệm disk
 - [x] `MAX_ITEM_LIST_LENGTH` cố định ở 200 trong tất cả yaml và `export_recbole.py`
 - [x] Fix parser Amazon 2014: meta file dùng Python dict format (nháy đơn) — thêm fallback `ast.literal_eval` trong `preprocess.py`
-- [x] `eval_zeroshot.sh` — đánh giá base model không fine-tune
+- [x] `eval.sh` mode `base` — đánh giá base model không fine-tune (zero-shot)
 - [x] `export_tevatron_aug.py` — data augmentation với sliding window, hỗ trợ `--window_size` và `--max_aug_per_user`
 - [x] `show_results.py` — tổng hợp kết quả tất cả experiments tự động, cập nhật README
+- [x] RecBole cài trong `tevatron-env` (không cần conda riêng)
+- [x] `run_recbole.py` — chạy bất kỳ model RecBole, hỗ trợ model custom qua `module.ClassName`
+- [x] Fix numpy 2.0 compatibility cho RecBole (`bool8`, `float_`, `unicode_`, ...)
+- [x] Fix yaml RecBole: `train_neg_sample_args: ~`, `TIME_FIELD`, `load_col`, `order: TO`
 
 ### Cần làm
-- [ ] Fix CUDA trong conda env `serec` để chạy SASRec trên GPU
 - [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
 
 ### Cải tiến tiềm năng

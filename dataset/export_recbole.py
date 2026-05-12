@@ -108,6 +108,12 @@ def export_recbole(dataset_name: str):
 data_path: dataset/recbole
 dataset: {dataset_name}
 
+# ── Dataset fields ───────────────────────────────────────────
+# Phải load timestamp để RecBole sort theo thứ tự thời gian (order: TO)
+TIME_FIELD: timestamp
+load_col:
+  inter: [user_id, item_id, timestamp]
+
 # ── Model ────────────────────────────────────────────────────
 model: SASRec
 hidden_size: 64
@@ -120,6 +126,7 @@ hidden_act: gelu
 layer_norm_eps: 1.0e-12
 initializer_range: 0.02
 loss_type: CE
+train_neg_sample_args: ~  # CE loss tự xử lý negatives nội bộ
 
 # Capped tại {MAX_ITEM_LIST_LENGTH} để tránh OOM với self-attention O(n²)
 # Dataset max seq len = {max_seq_len}
@@ -142,7 +149,7 @@ stopping_step: 10          # early stopping
 eval_args:
   split: {{LS: valid_and_test}}
   group_by: user
-  order: TO                  # Time Order — giữ thứ tự thời gian
+  order: TO                  # Time Order — bắt buộc với sequential models
   mode: full                 # Rank trên toàn bộ {len(all_items)} items
 
 metrics: [Recall, NDCG, MRR, Hit]
