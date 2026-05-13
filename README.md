@@ -262,6 +262,38 @@ Activate môi trường trước khi chạy bất kỳ script nào:
 source tevatron-env/bin/activate
 ```
 
+### 4.0 Lựa chọn Base Model
+
+Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh`. Ký hiệu **✓ cache** = đã download sẵn, không cần tải thêm.
+
+| Model | Base | Params | Mục đích gốc | Max seq len | Hidden dim | Ưu điểm | Nhược điểm | Phù hợp |
+| :--- | :--- | :---: | :--- | :---: | :---: | :--- | :--- | :---: |
+| `Qwen/Qwen3-Embedding-0.6B` ✓ cache | Qwen3 decoder | 0.6B | Dense retrieval · Embedding | 32 768 | 1 024 | Embedding-specific, nhẹ, zero-shot tốt | Nhỏ nhất trong dòng Embedding | ⭐⭐⭐ |
+| `Qwen/Qwen3-Embedding-4B` ✓ cache | Qwen3 decoder | 4B | Dense retrieval · Embedding | 32 768 | 2 560 | Cùng dòng Embedding nhưng lớn hơn, zero-shot tốt hơn đáng kể | VRAM sát giới hạn 12 GB (batch=1) | ⭐⭐⭐ |
+| `meta-llama/Llama-3.2-1B` ✓ cache | Llama 3.2 decoder | 1.24B | Text generation | 131 072 | 2 048 | Context rất dài, nhẹ, đã thử nghiệm | Không phải embedding model → zero-shot kém | ⭐⭐ |
+| `Qwen/Qwen2.5-1.5B` ✓ cache | Qwen2.5 decoder | 1.5B | Text generation | 32 768 | 1 536 | Nhẹ, đa ngôn ngữ tốt | Không phải embedding model | ⭐⭐ |
+| `Qwen/Qwen2.5-3B` ✓ cache | Qwen2.5 decoder | 3B | Text generation | 32 768 | 2 048 | Cân bằng size/performance tốt | Không phải embedding model | ⭐⭐ |
+| `meta-llama/Llama-3.2-3B` *(cần tải)* | Llama 3.2 decoder | 3.21B | Text generation | 131 072 | 3 072 | Context rất dài, mạnh hơn 1B | Cần download (~6 GB), VRAM sát giới hạn | ⭐⭐ |
+| `microsoft/Phi-3-mini-4k-instruct` ✓ cache | Phi-3 decoder | 3.8B | Text generation | 4 096 | 3 072 | Mạnh so với size | Max seq len ngắn (4 096) — không đủ cho history dài | ⭐ |
+| `mistralai/Mistral-7B-v0.3` ✓ cache | Mistral decoder | 7.24B | Text generation | 32 768 | 4 096 | Mạnh, nhiều embedding model build trên đây | **OOM** — 16 GB BF16, vượt 12 GB VRAM | ✗ |
+
+**Ghi chú về mức độ phù hợp:**
+- ⭐⭐⭐ **Tốt nhất** — Embedding-specific, fit VRAM, khuyến nghị dùng trước
+- ⭐⭐ **Tốt** — Text generation model, cần fine-tune nhiều hơn để đạt chất lượng embedding tương đương; fit VRAM với batch=1
+- ⭐ **Dùng được nhưng có hạn chế** — Vấn đề kỹ thuật cụ thể cần lưu ý
+- ✗ **Không khả thi** với phần cứng hiện tại
+
+**Cách chọn nhanh:**
+```bash
+# Tốt nhất — embedding model, đã có sẵn
+./train.sh beauty Qwen/Qwen3-Embedding-0.6B    # nhẹ, nhanh
+./train.sh beauty Qwen/Qwen3-Embedding-4B      # mạnh hơn, sát VRAM
+
+# Thay thế — general LLM, cần fine-tune nhiều hơn
+./train.sh beauty meta-llama/Llama-3.2-1B
+./train.sh beauty Qwen/Qwen2.5-3B
+```
+
 ### 4.1 Tham số của các scripts
 
 **`train.sh`** — Fine-tune model:

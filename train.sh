@@ -4,6 +4,9 @@
 # với CUDA 12.6 runtime mà torch tự bundle (torch 2.7.1+cu126).
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
+# HuggingFace cache — chuyển sang Data1 để tránh đầy ổ cài HĐH.
+# export HF_HOME="/media/administrator/Data1/hf_cache"
+
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
   echo "Cách sử dụng: ./train.sh <dataset> [model] [train_group_size] [variant]"
@@ -25,7 +28,7 @@ variant=${4:-""}
 
 # Điều chỉnh batch size theo kích thước model để tránh OOM
 case "${model}" in
-  *Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*)
+  *Qwen3-Embedding-4B*|*Qwen2.5-3B*|*Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*)
     per_device_batch=1
     grad_accum=32
     eval_batch=16
@@ -93,8 +96,8 @@ deepspeed --include localhost:0 --master_port 60000 \
   --query_max_len 128 \
   --passage_max_len 196 \
   --num_train_epochs 3 \
-  --logging_steps 50 \
-  --save_steps 500
+  --logging_steps 100 \
+  --save_steps 2000
 
 echo ""
 echo "✓ Model đã lưu tại: ${LORA_DIR}"

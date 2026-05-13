@@ -43,6 +43,10 @@ MODEL_LABELS = {
     "qwen3-embedding-0.6b-aug-w5":     "Qwen3-0.6B · Aug-w5-8neg",
     "qwen3-embedding-0.6b-reversed":   "Qwen3-0.6B · reversed",
     "qwen3-embedding-0.6b-random":     "Qwen3-0.6B · random",
+    "qwen3-embedding-4b-zeroshot":     "Qwen3-4B · zero-shot",
+    "qwen3-embedding-4b":              "Qwen3-4B · FT",
+    "qwen2.5-3b-zeroshot":             "Qwen2.5-3B · zero-shot",
+    "qwen2.5-3b":                      "Qwen2.5-3B · FT",
     "llama-3.2-1b-zeroshot":           "Llama-3.2-1B · zero-shot",
     "llama-3.2-1b":                    "Llama-3.2-1B · FT-8neg",
 }
@@ -57,6 +61,10 @@ MODEL_ORDER = [
     "qwen3-embedding-0.6b-aug-w5",
     "qwen3-embedding-0.6b-reversed",
     "qwen3-embedding-0.6b-random",
+    "qwen3-embedding-4b-zeroshot",
+    "qwen3-embedding-4b",
+    "qwen2.5-3b-zeroshot",
+    "qwen2.5-3b",
     "llama-3.2-1b-zeroshot",
     "llama-3.2-1b",
 ]

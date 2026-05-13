@@ -35,6 +35,9 @@ set -e
 # với CUDA 12.6 runtime mà torch tự bundle (torch 2.7.1+cu126).
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
+# HuggingFace cache — chuyển sang Data1 để tránh đầy ổ cài HĐH.
+# export HF_HOME="/media/administrator/Data1/hf_cache"
+
 # ── Tham số & validation ──────────────────────────────────────────────────────
 
 if [ -z "$1" ]; then
@@ -73,7 +76,7 @@ esac
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 case "${model}" in
-  *Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*) eval_batch=16 ;;
+  *Qwen3-Embedding-4B*|*Qwen2.5-3B*|*Llama-3.2-3B*|*Llama-3-8B*|*Llama-3.1-8B*|*Llama-3.2-1B*) eval_batch=16 ;;
   *) eval_batch=64 ;;
 esac
 
