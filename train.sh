@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Chỉ giữ path chứa libcuda.so (driver), bỏ CUDA 11.8 toolkit để tránh xung đột
+# với CUDA 12.6 runtime mà torch tự bundle (torch 2.7.1+cu126).
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
+
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
   echo "Cách sử dụng: ./train.sh <dataset> [model] [train_group_size] [variant]"

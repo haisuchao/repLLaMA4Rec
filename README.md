@@ -107,14 +107,22 @@ pip install -e tevatron/
 ```
 
 > **Lưu ý quan trọng — CUDA không nhận GPU:**
-> Driver mới đặt `libcuda.so` tại `/usr/lib/x86_64-linux-gnu/` nhưng path này
-> không có trong `LD_LIBRARY_PATH` mặc định. Script `activate` đã được vá để
-> tự động thêm path này khi activate env. Nếu tạo lại env từ đầu, thêm vào
-> `tevatron-env/bin/activate` sau dòng `export PATH`:
+> Có hai nguyên nhân phổ biến:
+>
+> **1. `libcuda.so` không nằm trong `LD_LIBRARY_PATH`** — Driver mới đặt file này tại
+> `/usr/lib/x86_64-linux-gnu/`. Script `activate` và các script `train.sh`/`eval.sh`
+> đã được vá để set đúng path này.
+>
+> **2. CUDA toolkit cũ (11.x) xung đột với torch cu126** — Nếu shell profile có
+> `LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:...`, các thư viện CUDA 11.8 sẽ được
+> load trước CUDA 12.6 mà torch tự bundle → `torch.cuda.is_available()` trả về False.
+>
+> Fix (đã áp dụng trong `activate`, `train.sh`, `eval.sh`): set `LD_LIBRARY_PATH`
+> chỉ chứa path driver, **không** append CUDA toolkit cũ:
 >
 > ```bash
 > _OLD_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-> export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+> export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 > ```
 >
 > Và thêm vào hàm `deactivate()`:
@@ -515,40 +523,16 @@ Cả hai model đều dùng:
 
 ## 7. Kết quả thực nghiệm
 
-Cập nhật bảng bằng lệnh:
+Xem chi tiết tại **[experiments.md](experiments.md)** — bao gồm bảng kết quả tổng hợp và mô tả từng thực nghiệm.
+
+Cập nhật bảng kết quả tự động:
 
 ```bash
-python show_results.py                 # Chỉ in ra terminal
-python show_results.py --update-readme # In + ghi vào README này
+python show_results.py                      # Chỉ in ra terminal
+python show_results.py --update-experiments # In + ghi vào experiments.md
 ```
 
 Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_test.txt` với format `<metric>  all  <value>`.
-
-<!-- RESULTS_START -->
-### BEAUTY
-
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| SASRec | 0.0323 | 0.0548 | 0.0412 | 0.0824 | 0.0506 | 0.1198 | 0.0081 |
-| Qwen3-0.6B (zero-shot) | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
-| Qwen3-0.6B (fine-tuned) | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
-| Llama-3.2-1B (zero-shot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
-| Llama-3.2-1B (fine-tuned) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
-
-### SPORTS
-
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Qwen3-0.6B (zero-shot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
-| Llama-3.2-1B (zero-shot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
-
-### ML-1M
-
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Qwen3-0.6B (fine-tuned) | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
-
-<!-- RESULTS_END -->
 
 ---
 
@@ -657,3 +641,21 @@ File `meta_Beauty.json.gz` và `meta_Sports_and_Outdoors.json.gz` từ nguồn M
 ### Vá `trainer.py` của Tevatron
 
 File `tevatron/src/tevatron/retriever/trainer.py` đã được vá để tương thích với `transformers>=5.0` (API `processing_class` thay `tokenizer`, tham số `save_safetensors`). Không cần vá lại khi dùng môi trường đã cài sẵn.
+
+### Tự động dọn DeepSpeed states sau mỗi checkpoint (`train.py`)
+
+File `tevatron/src/tevatron/retriever/driver/train.py` đã được thêm `CheckpointCleanupCallback` — hook `on_save` chạy ngay sau khi DeepSpeed lưu mỗi checkpoint, xóa các file chỉ cần để resume training:
+
+| File/thư mục bị xóa | Dung lượng | Lý do |
+|---|---|---|
+| `global_step*/` | ~2.3 GB | DeepSpeed model + optimizer states |
+| `rng_state.pth` | ~15 KB | Trạng thái random number generator |
+| `scheduler.pt` | ~1.4 KB | Trạng thái learning rate scheduler |
+| `training_args.bin` | ~6.5 KB | Config training |
+| `zero_to_fp32.py` | ~33 KB | Script chuyển đổi ZeRO weights |
+
+Mỗi `checkpoint-N/` sau cleanup chỉ còn `adapter_config.json` + `adapter_model.safetensors` (~20 MB) — đủ để `eval.sh` chạy bình thường.
+
+> **Lưu ý:** Sau cleanup không thể resume training từ checkpoint đó nữa. Đây là trade-off chấp nhận được vì workflow luôn là train từ đầu.
+>
+> Để revert về bản gốc Tevatron: `cd tevatron && git checkout src/tevatron/retriever/driver/train.py`

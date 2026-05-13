@@ -4,8 +4,9 @@ show_results.py
 Tự động đọc kết quả từ output/ và hiển thị bảng so sánh các experiment.
 
 Cách dùng:
-  python show_results.py                   # In bảng ra terminal
-  python show_results.py --update-readme   # In + cập nhật README.md
+  python show_results.py                        # In bảng ra terminal
+  python show_results.py --update-experiments   # In + cập nhật experiments.md
+  python show_results.py --update-readme        # In + cập nhật README.md (legacy)
 
 Quy ước thư mục:
   output/<dataset>/<model_tag>/embeddings/results/eval_test.txt
@@ -13,7 +14,6 @@ Quy ước thư mục:
 """
 
 import re
-import sys
 import argparse
 from pathlib import Path
 from collections import defaultdict
@@ -35,14 +35,16 @@ DATASET_ORDER = ["beauty", "sports", "ml-1m", "steam"]
 
 # Nhãn hiển thị — thêm variant mới vào đây
 MODEL_LABELS = {
-    "qwen3-embedding-0.6b-zeroshot":  "Qwen3-0.6B (zero-shot)",
-    "qwen3-embedding-0.6b":           "Qwen3-0.6B (fine-tuned)",
-    "qwen3-embedding-0.6b-aug":       "Qwen3-0.6B (augmented)",
-    "qwen3-embedding-0.6b-reversed":  "Qwen3-0.6B (reversed order)",
-    "qwen3-embedding-0.6b-random":    "Qwen3-0.6B (random order)",
-    "llama-3.2-1b-zeroshot":  "Llama-3.2-1B (zero-shot)",
-    "llama-3.2-1b":  "Llama-3.2-1B (fine-tuned)",
-    "sasrec":                         "SASRec",
+    "sasrec":                          "SASRec",
+    "qwen3-embedding-0.6b-zeroshot":   "Qwen3-0.6B · zero-shot",
+    "qwen3-embedding-0.6b":            "Qwen3-0.6B · FT",
+    "qwen3-embedding-0.6b-aug":        "Qwen3-0.6B · Aug-8neg",
+    "qwen3-embedding-0.6b-aug-3":      "Qwen3-0.6B · Aug3-8neg",
+    "qwen3-embedding-0.6b-aug-w5":     "Qwen3-0.6B · Aug-w5-8neg",
+    "qwen3-embedding-0.6b-reversed":   "Qwen3-0.6B · reversed",
+    "qwen3-embedding-0.6b-random":     "Qwen3-0.6B · random",
+    "llama-3.2-1b-zeroshot":           "Llama-3.2-1B · zero-shot",
+    "llama-3.2-1b":                    "Llama-3.2-1B · FT-8neg",
 }
 
 # Thứ tự ưu tiên hiển thị trong bảng
@@ -51,14 +53,20 @@ MODEL_ORDER = [
     "qwen3-embedding-0.6b-zeroshot",
     "qwen3-embedding-0.6b",
     "qwen3-embedding-0.6b-aug",
+    "qwen3-embedding-0.6b-aug-3",
+    "qwen3-embedding-0.6b-aug-w5",
     "qwen3-embedding-0.6b-reversed",
     "qwen3-embedding-0.6b-random",
     "llama-3.2-1b-zeroshot",
     "llama-3.2-1b",
 ]
 
-README_MARKER_START = "<!-- RESULTS_START -->"
-README_MARKER_END   = "<!-- RESULTS_END -->"
+RESULTS_MARKER_START = "<!-- RESULTS_START -->"
+RESULTS_MARKER_END   = "<!-- RESULTS_END -->"
+
+# Legacy alias
+README_MARKER_START = RESULTS_MARKER_START
+README_MARKER_END   = RESULTS_MARKER_END
 
 
 # ── Parsers ───────────────────────────────────────────────────────────────────
@@ -205,44 +213,58 @@ def format_terminal(results: dict) -> str:
 
 # ── README updater ────────────────────────────────────────────────────────────
 
-def update_readme(table_md: str, readme_path: str = "README.md"):
-    path = Path(readme_path)
+def update_file(table_md: str, file_path: str):
+    """Cập nhật phần kết quả giữa RESULTS_START/END markers trong file chỉ định."""
+    path = Path(file_path)
     content = path.read_text()
 
     inner = f"\n{table_md}\n"
-    new_block = f"{README_MARKER_START}{inner}{README_MARKER_END}"
+    new_block = f"{RESULTS_MARKER_START}{inner}{RESULTS_MARKER_END}"
 
-    if README_MARKER_START in content and README_MARKER_END in content:
-        pattern = re.escape(README_MARKER_START) + r".*?" + re.escape(README_MARKER_END)
+    if RESULTS_MARKER_START in content and RESULTS_MARKER_END in content:
+        pattern = re.escape(RESULTS_MARKER_START) + r".*?" + re.escape(RESULTS_MARKER_END)
         new_content = re.sub(pattern, new_block, content, flags=re.DOTALL)
     else:
-        print(f"  Cảnh báo: Không tìm thấy markers trong {readme_path}. Thêm vào cuối.")
+        print(f"  Cảnh báo: Không tìm thấy markers trong {file_path}. Thêm vào cuối.")
         new_content = content.rstrip() + f"\n\n{new_block}\n"
 
     path.write_text(new_content)
-    print(f"✓ {readme_path} đã được cập nhật.")
+    print(f"✓ {file_path} đã được cập nhật.")
+
+
+def update_readme(table_md: str, readme_path: str = "README.md"):
+    """Legacy wrapper — giữ backward compatibility."""
+    update_file(table_md, readme_path)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Hiển thị và cập nhật bảng kết quả thực nghiệm")
+    parser.add_argument("--update-experiments", action="store_true",
+                        help="Cập nhật bảng kết quả trong experiments.md (khuyến nghị)")
     parser.add_argument("--update-readme", action="store_true",
-                        help="Cập nhật section kết quả trong README.md")
+                        help="Cập nhật bảng kết quả trong README.md (legacy)")
     parser.add_argument("--output-dir", default="./output",
                         help="Thư mục chứa kết quả (mặc định: ./output)")
-    parser.add_argument("--readme", default="README.md",
-                        help="Đường dẫn README.md (mặc định: README.md)")
+    parser.add_argument("--file", default=None,
+                        help="Đường dẫn file cần cập nhật (override mặc định)")
     args = parser.parse_args()
 
     results = discover_results(args.output_dir)
 
     print(format_terminal(results))
 
-    if args.update_readme:
-        update_readme(format_markdown(results), args.readme)
+    if args.update_experiments or args.update_readme:
+        if args.file:
+            target = args.file
+        elif args.update_readme:
+            target = "README.md"
+        else:
+            target = "experiments.md"
+        update_file(format_markdown(results), target)
     else:
-        print("(Dùng --update-readme để cập nhật README.md tự động)")
+        print("(Dùng --update-experiments để cập nhật experiments.md tự động)")
 
 
 if __name__ == "__main__":

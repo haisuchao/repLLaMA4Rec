@@ -31,7 +31,9 @@
 #   ./eval.sh beauty best Qwen/Qwen3-Embedding-0.6B test aug
 
 set -e
-export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+# Chỉ giữ path chứa libcuda.so (driver), bỏ CUDA 11.8 toolkit để tránh xung đột
+# với CUDA 12.6 runtime mà torch tự bundle (torch 2.7.1+cu126).
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 # ── Tham số & validation ──────────────────────────────────────────────────────
 
