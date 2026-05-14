@@ -100,11 +100,40 @@ pip install deepspeed==0.18.9
 pip install transformers==5.7.0
 pip install peft==0.19.1
 pip install accelerate==1.13.0
-pip install datasets faiss-cpu pyserini pytrec_eval sentencepiece tqdm
+pip install datasets faiss-cpu pyserini pytrec_eval sentencepiece qwen_omni_utils tqdm
+
+# Flash Attention 2 — bắt buộc (xem lưu ý bên dưới)
+pip install flash-attn==2.8.3 --no-build-isolation
 
 # Cài tevatron ở chế độ editable
 pip install -e tevatron/
 ```
+
+> **Lưu ý quan trọng — Flash Attention 2:**
+>
+> Tevatron mặc định dùng `attn_implementation="flash_attention_2"` cho cả training lẫn eval.
+> Nếu không cài `flash-attn`, **cả `train.sh` và `eval.sh` đều báo lỗi ngay khi khởi động.**
+>
+> **Yêu cầu để cài flash-attn:**
+> - GPU có CUDA Compute Capability ≥ 8.0 (Ampere trở lên — RTX 30xx, 40xx, A100, H100)
+> - PyTorch đã cài với CUDA support (`torch.cuda.is_available() == True`)
+> - BF16 hoặc FP16 (không hỗ trợ FP32)
+>
+> **Nếu GPU không hỗ trợ flash-attn** (Compute Capability < 8.0 — GTX 10xx, 20xx):
+> Thêm flag `--attn_implementation sdpa` vào lệnh trong `train.sh` và `eval.sh`,
+> hoặc sửa default trong `tevatron/src/tevatron/retriever/arguments.py`:
+> ```python
+> attn_implementation: Optional[str] = field(
+>     default="sdpa",   # thay "flash_attention_2" bằng "sdpa"
+>     ...
+> )
+> ```
+>
+> Kiểm tra flash-attn đã cài đúng:
+> ```bash
+> python -c "import flash_attn; print('flash-attn version:', flash_attn.__version__)"
+> # → flash-attn version: 2.8.3
+> ```
 
 > **Lưu ý quan trọng — CUDA không nhận GPU:**
 > Có hai nguyên nhân phổ biến:
