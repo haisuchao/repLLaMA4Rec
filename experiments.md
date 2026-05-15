@@ -15,25 +15,27 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Qwen3-0.6B · zero-shot | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
-| Qwen3-0.6B · FT | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
-| Qwen3-0.6B · Aug3-8neg | 0.0263 | 0.0498 | 0.0378 | 0.0856 | 0.0498 | 0.1333 | 0.0233 |
-| Qwen3-0.6B · Aug5-8neg | 0.0264 | 0.0509 | 0.0390 | 0.0905 | 0.0518 | 0.1409 | 0.0235 |
-| Llama-3.2-1B · zero-shot | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
-| Llama-3.2-1B · FT-8neg | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
+| [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
+| [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
+| [qwen3-1.7b · zero-shot](#exp-beauty-qwen3-1.7b-zeroshot) | 0.0005 | 0.0007 | 0.0005 | 0.0009 | 0.0006 | 0.0013 | 0.0004 |
+| [qwen3-embedding-0.6b](#exp-beauty-qwen3-embedding-0.6b) | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
+| [qwen3-embedding-0.6b-aug-3](#exp-beauty-qwen3-embedding-0.6b-aug-3) | 0.0263 | 0.0498 | 0.0378 | 0.0856 | 0.0498 | 0.1333 | 0.0233 |
+| [qwen3-embedding-0.6b-aug-5](#exp-beauty-qwen3-embedding-0.6b-aug-5) | 0.0264 | 0.0509 | 0.0390 | 0.0905 | 0.0518 | 0.1409 | 0.0235 |
+| [qwen3-embedding-0.6b-aug-5-ep-1-lor-32](#exp-beauty-qwen3-embedding-0.6b-aug-5-ep-1-lor-32) | 0.0251 | 0.0475 | 0.0365 | 0.0830 | 0.0478 | 0.1278 | 0.0224 |
+| [qwen3-embedding-0.6b · zero-shot](#exp-beauty-qwen3-embedding-0.6b-zeroshot) | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
 
 ### SPORTS
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Qwen3-0.6B · zero-shot | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
-| Llama-3.2-1B · zero-shot | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
+| [llama-3.2-1b · zero-shot](#exp-sports-llama-3.2-1b-zeroshot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
+| [qwen3-embedding-0.6b · zero-shot](#exp-sports-qwen3-embedding-0.6b-zeroshot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
 
 ### ML-1M
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Qwen3-0.6B · FT | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
+| [qwen3-embedding-0.6b](#exp-ml-1m-qwen3-embedding-0.6b) | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
 
 <!-- RESULTS_END -->
 
@@ -44,7 +46,33 @@
 > Sinh tự động từ `train_config.json` bằng: `python show_results.py --update-experiments`
 
 <!-- AUTO_EXP_START -->
-_Chưa có experiment nào có train_config.json. Chạy train.sh để tự sinh._
+### BEAUTY
+
+<a id="exp-beauty-qwen3-embedding-0.6b-bm25"></a>
+#### Qwen3-Embedding-0.6B · bm25
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | bm25 |
+| train_group_size | 8 (1 positive + 7 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Trained at | 2026-05-15T23:25:23+07:00 |
+
+```bash
+./train.sh beauty --data-variant bm25
+./eval.sh beauty --tag bm25
+```
+
+---
+
 <!-- AUTO_EXP_END -->
 
 ---
