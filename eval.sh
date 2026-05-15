@@ -2,19 +2,22 @@
 #
 # eval.sh — Đánh giá model repLLaMA sau khi training.
 #
-# Cách sử dụng: ./eval.sh <dataset> [checkpoint] [model] [split] [variant]
+# Cách sử dụng: ./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--tag TAG] [--metric METRIC]
 #
 #   checkpoint (positional, tuỳ chọn):
 #     best         (mặc định) sweep tất cả checkpoints trên valid, chọn tốt nhất
-#                             theo ndcg_10, sau đó evaluate trên <split>
+#                             theo --metric, sau đó evaluate trên <split>
 #     latest       evaluate final model sau khi train xong tất cả epochs
 #     base         evaluate base model KHÔNG fine-tune (zero-shot baseline)
-#                  → bỏ qua --variant, lưu vào output/<dataset>/<model_tag>-zeroshot/
+#                  → bỏ qua --tag, lưu vào output/<dataset>/<model_tag>-zeroshot/
 #     checkpoint-N evaluate một checkpoint cụ thể (ví dụ: checkpoint-1000)
 #
 #   --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)
 #   --split SPLIT    : valid | test  (mặc định: test)
-#   --variant TAG    : hậu tố model dir, ví dụ 'aug' — bị bỏ qua khi checkpoint=base
+#   --tag TAG        : hậu tố output dir để chọn model đã train (ví dụ: aug, gs32)
+#                      bị bỏ qua khi checkpoint=base
+#   --metric METRIC  : metric dùng để chọn best checkpoint (mặc định: ndcg_10)
+#                      chỉ dùng ở best mode
 #
 # Output:
 #   best   mode → eval_<split>_best.txt    (dùng bởi show_results.py)
@@ -27,10 +30,11 @@
 #   ./eval.sh beauty latest
 #   ./eval.sh beauty base
 #   ./eval.sh beauty checkpoint-1000
-#   ./eval.sh beauty --variant aug
+#   ./eval.sh beauty --tag aug
 #   ./eval.sh beauty --split valid
+#   ./eval.sh beauty --split valid --metric hr_10
 #   ./eval.sh beauty checkpoint-1000 --model Qwen/Qwen3-Embedding-0.6B --split valid
-#   ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug
+#   ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag aug
 
 set -e
 # Chỉ giữ path chứa libcuda.so (driver), bỏ CUDA 11.8 toolkit để tránh xung đột
@@ -44,23 +48,25 @@ export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
-  echo "Cách sử dụng: ./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--variant TAG]"
+  echo "Cách sử dụng: ./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--tag TAG] [--metric METRIC]"
   echo ""
   echo "  dataset          : beauty | sports | ml-1m | steam  (bắt buộc)"
   echo "  checkpoint       : best (mặc định) | latest | base | checkpoint-N"
   echo "  --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
   echo "  --split SPLIT    : valid | test  (mặc định: test)"
-  echo "  --variant TAG    : hậu tố model dir, ví dụ 'aug'"
+  echo "  --tag TAG        : hậu tố output dir để chọn model đã train (ví dụ: aug, gs32)"
+  echo "  --metric METRIC  : metric chọn best checkpoint (mặc định: ndcg_10, chỉ dùng ở best mode)"
   echo ""
   echo "Ví dụ:"
   echo "  ./eval.sh beauty"
   echo "  ./eval.sh beauty latest"
   echo "  ./eval.sh beauty base"
   echo "  ./eval.sh beauty checkpoint-1000"
-  echo "  ./eval.sh beauty --variant aug"
+  echo "  ./eval.sh beauty --tag aug"
   echo "  ./eval.sh beauty --split valid"
+  echo "  ./eval.sh beauty --split valid --metric hr_10"
   echo "  ./eval.sh beauty checkpoint-1000 --model Qwen/Qwen3-Embedding-0.6B --split valid"
-  echo "  ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug"
+  echo "  ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag aug"
   exit 1
 fi
 
@@ -77,14 +83,16 @@ fi
 # Defaults
 model="Qwen/Qwen3-Embedding-0.6B"
 split="test"
-variant=""
+tag=""
+metric="ndcg_10"
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --model)   model="$2";   shift 2 ;;
     --split)   split="$2";   shift 2 ;;
-    --variant) variant="$2"; shift 2 ;;
+    --tag)     tag="$2";     shift 2 ;;
+    --metric)  metric="$2";  shift 2 ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./eval.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
@@ -97,6 +105,10 @@ case "$split" in
   valid|test) ;;
   *) echo "Lỗi: Split '${split}' không hợp lệ! Chọn: valid, test"; exit 1 ;;
 esac
+case "$metric" in
+  ndcg_5|ndcg_10|ndcg_20|hr_5|hr_10|hr_20|mrr_5|mrr_10|mrr_20) ;;
+  *) echo "Lỗi: Metric '${metric}' không hợp lệ! Chọn: ndcg_5/10/20, hr_5/10/20, mrr_5/10/20"; exit 1 ;;
+esac
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -105,17 +117,17 @@ case "${model}" in
   *) eval_batch=64 ;;
 esac
 
-SELECTION_METRIC="ndcg_10"   # metric dùng để chọn best checkpoint (best mode)
+SELECTION_METRIC="${metric}"
 
 MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
 
 if [ "${checkpoint}" = "base" ]; then
-  # base mode: không dùng LoRA, bỏ qua variant, lưu vào thư mục -zeroshot
+  # base mode: không dùng LoRA, bỏ qua tag, lưu vào thư mục -zeroshot
   USE_LORA=false
   MODEL_TAG="${MODEL_TAG}-zeroshot"
 else
   USE_LORA=true
-  [ -n "${variant}" ] && MODEL_TAG="${MODEL_TAG}-${variant}"
+  [ -n "${tag}" ] && MODEL_TAG="${MODEL_TAG}-${tag}"
 fi
 
 LORA_BASE="./output/${dataset}/${MODEL_TAG}"
@@ -130,7 +142,8 @@ echo "  Dataset    : ${dataset}"
 echo "  Checkpoint : ${checkpoint}"
 echo "  Model      : ${model}"
 echo "  Split      : ${split}"
-[ -n "${variant}" ] && echo "  Variant    : ${variant}"
+[ -n "${tag}" ]             && echo "  Tag        : ${tag}"
+[ "${checkpoint}" = "best" ] && echo "  Metric     : ${metric}"
 echo "════════════════════════════════════════════════"
 echo ""
 

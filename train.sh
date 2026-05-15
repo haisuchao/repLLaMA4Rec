@@ -9,19 +9,21 @@ export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
-  echo "Cách sử dụng: ./train.sh <dataset> [--model MODEL] [--group-size N] [--variant TAG]"
+  echo "Cách sử dụng: ./train.sh <dataset> [--model MODEL] [--group-size N] [--data-variant TAG] [--tag TAG]"
   echo ""
-  echo "  dataset        : beauty | sports | ml-1m | steam  (bắt buộc)"
-  echo "  --model MODEL  : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
-  echo "  --group-size N : số passages/query = 1 positive + N-1 negatives (mặc định: 8)"
-  echo "  --variant TAG  : hậu tố experiment, ví dụ 'aug'"
-  echo "                   → đọc data từ <dataset>-aug/, lưu vào <model_tag>-aug/"
+  echo "  dataset             : beauty | sports | ml-1m | steam  (bắt buộc)"
+  echo "  --model MODEL       : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
+  echo "  --group-size N      : số passages/query = 1 positive + N-1 negatives (mặc định: 8)"
+  echo "  --data-variant TAG  : đọc data từ tevatron/<dataset>-<TAG>/ (ví dụ: aug)"
+  echo "  --tag TAG           : hậu tố output dir để phân biệt experiment (ví dụ: gs32, aug-gs32)"
+  echo "                        mặc định: lấy giá trị --data-variant nếu không chỉ định"
   echo ""
   echo "Ví dụ:"
   echo "  ./train.sh beauty"
-  echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-0.6B --group-size 16"
-  echo "  ./train.sh beauty --variant aug"
-  echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug"
+  echo "  ./train.sh beauty --group-size 32 --tag gs32"
+  echo "  ./train.sh beauty --data-variant aug"
+  echo "  ./train.sh beauty --data-variant aug --tag aug-gs32 --group-size 32"
+  echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b"
   exit 1
 fi
 
@@ -31,17 +33,22 @@ shift
 # Defaults
 model="Qwen/Qwen3-Embedding-0.6B"
 train_group_size=8
-variant=""
+data_variant=""
+tag=""
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)       model="$2";            shift 2 ;;
-    --group-size)  train_group_size="$2"; shift 2 ;;
-    --variant)     variant="$2";          shift 2 ;;
+    --model)         model="$2";            shift 2 ;;
+    --group-size)    train_group_size="$2"; shift 2 ;;
+    --data-variant)  data_variant="$2";     shift 2 ;;
+    --tag)           tag="$2";              shift 2 ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./train.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
+
+# Output tag: --tag có ưu tiên, nếu không có thì fallback về --data-variant
+tag="${tag:-${data_variant}}"
 
 # Điều chỉnh batch size theo kích thước model để tránh OOM
 case "${model}" in
@@ -62,6 +69,8 @@ case "$dataset" in
     echo "Dataset          : ${dataset}"
     echo "Model            : ${model}"
     echo "Train group size : ${train_group_size} (1 positive + $((train_group_size - 1)) negatives)"
+    [ -n "${data_variant}" ] && echo "Data variant     : ${data_variant}"
+    [ -n "${tag}" ]          && echo "Output tag       : ${tag}"
     ;;
   *)
     echo "Lỗi: Dataset '${dataset}' không hợp lệ!"
@@ -72,9 +81,9 @@ esac
 
 BASE_MODEL="${model}"
 MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
-[ -n "${variant}" ] && MODEL_TAG="${MODEL_TAG}-${variant}"
+[ -n "${tag}" ] && MODEL_TAG="${MODEL_TAG}-${tag}"
 LORA_DIR="./output/${dataset}/${MODEL_TAG}"
-DATA_DIR="dataset/dataset/tevatron/${dataset}${variant:+-${variant}}"
+DATA_DIR="dataset/dataset/tevatron/${dataset}${data_variant:+-${data_variant}}"
 TRAIN_PATH="${DATA_DIR}/train.jsonl"
 CORPUS_PATH="${DATA_DIR}/corpus.jsonl"
 

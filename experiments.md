@@ -128,7 +128,7 @@ python run_recbole.py SASRec ml-1m
 
 ```bash
 # Bước 1: tạo augmented data
-cd dataset && python export_tevatron_aug.py beauty --window_size 3 && cd ..
+cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 
 # Bước 2: train
 ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 8 aug-3

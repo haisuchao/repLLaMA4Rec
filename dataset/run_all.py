@@ -2,6 +2,12 @@
 run_all.py
 ==========
 Entry point chạy toàn bộ pipeline cho một hoặc nhiều dataset.
+Xuất định dạng standard (1 sample/user, random negatives).
+
+Để augmentation / BM25 negatives, dùng trực tiếp export_tevatron.py:
+  python export_tevatron.py beauty --window_size 3
+  python export_tevatron.py beauty --neg_strategy mixed
+  python export_tevatron.py beauty --window_size 3 --neg_strategy mixed
 
 Cách dùng:
   python run_all.py                        # chạy beauty (mặc định)
