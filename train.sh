@@ -9,22 +9,39 @@ export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
-  echo "Cách sử dụng: ./train.sh <dataset> [model] [train_group_size] [variant]"
-  echo "  dataset          : beauty | sports | ml-1m | steam"
-  echo "  model            : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
-  echo "  train_group_size : số passages/query = 1 positive + N negatives (mặc định: 8)"
-  echo "  variant          : hậu tố cho data dir và model output dir (mặc định: rỗng)"
-  echo "                     ví dụ: 'aug' → dùng data từ beauty-aug/, lưu vào qwen3-...-aug/"
-  echo "Ví dụ: ./train.sh beauty"
-  echo "Ví dụ: ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 16"
-  echo "Ví dụ: ./train.sh beauty Qwen/Qwen3-Embedding-0.6B 8 aug"
+  echo "Cách sử dụng: ./train.sh <dataset> [--model MODEL] [--group-size N] [--variant TAG]"
+  echo ""
+  echo "  dataset        : beauty | sports | ml-1m | steam  (bắt buộc)"
+  echo "  --model MODEL  : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
+  echo "  --group-size N : số passages/query = 1 positive + N-1 negatives (mặc định: 8)"
+  echo "  --variant TAG  : hậu tố experiment, ví dụ 'aug'"
+  echo "                   → đọc data từ <dataset>-aug/, lưu vào <model_tag>-aug/"
+  echo ""
+  echo "Ví dụ:"
+  echo "  ./train.sh beauty"
+  echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-0.6B --group-size 16"
+  echo "  ./train.sh beauty --variant aug"
+  echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug"
   exit 1
 fi
 
 dataset=$1
-model=${2:-"Qwen/Qwen3-Embedding-0.6B"}
-train_group_size=${3:-8}
-variant=${4:-""}
+shift
+
+# Defaults
+model="Qwen/Qwen3-Embedding-0.6B"
+train_group_size=8
+variant=""
+
+# Parse named flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)       model="$2";            shift 2 ;;
+    --group-size)  train_group_size="$2"; shift 2 ;;
+    --variant)     variant="$2";          shift 2 ;;
+    *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./train.sh để xem hướng dẫn."; exit 1 ;;
+  esac
+done
 
 # Điều chỉnh batch size theo kích thước model để tránh OOM
 case "${model}" in

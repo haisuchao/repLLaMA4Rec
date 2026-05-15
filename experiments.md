@@ -17,7 +17,8 @@
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | Qwen3-0.6B · zero-shot | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
 | Qwen3-0.6B · FT | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
-| Qwen3-0.6B · Aug3-8neg | 0.0269 | 0.0508 | 0.0389 | 0.0882 | 0.0515 | 0.1379 | 0.0241 |
+| Qwen3-0.6B · Aug3-8neg | 0.0263 | 0.0498 | 0.0378 | 0.0856 | 0.0498 | 0.1333 | 0.0233 |
+| Qwen3-0.6B · Aug5-8neg | 0.0264 | 0.0509 | 0.0390 | 0.0905 | 0.0518 | 0.1409 | 0.0235 |
 | Llama-3.2-1B · zero-shot | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
 | Llama-3.2-1B · FT-8neg | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
 
@@ -42,38 +43,21 @@
 
 ---
 
-### EXP-B1 · SASRec · Beauty
+### EXP-B · SASRec (Baseline)
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Loại model | Sequential Recommendation (ID-based) |
 | Framework | RecBole 1.2.1 |
-| Dataset | Amazon Beauty (standard, 1 sample/user) |
+| Dataset | Beauty · Sports · ML-1M |
 | Loss | Cross-Entropy (full ranking, softmax trên toàn bộ items) |
 | MAX_ITEM_LIST_LENGTH | 200 (tối đa 200 items gần nhất) |
 | Cải tiến | — (config mặc định RecBole) |
+| Ghi chú | Baseline ID-based để so sánh với repLLaMA (text-based) |
 
 ```bash
 python run_recbole.py SASRec beauty
-```
-
----
-
-### EXP-B2 · SASRec · Sports
-
-Tương tự [EXP-B1](#exp-b1--sasrec--beauty) nhưng trên dataset Sports.
-
-```bash
 python run_recbole.py SASRec sports
-```
-
----
-
-### EXP-B3 · SASRec · ML-1M
-
-Tương tự [EXP-B1](#exp-b1--sasrec--beauty) nhưng trên dataset ML-1M.
-
-```bash
 python run_recbole.py SASRec ml-1m
 ```
 

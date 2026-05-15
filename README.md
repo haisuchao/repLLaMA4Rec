@@ -328,35 +328,36 @@ Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh
 **`train.sh`** — Fine-tune model:
 
 ```
-./train.sh <dataset> [model] [train_group_size] [variant]
+./train.sh <dataset> [--model MODEL] [--group-size N] [--variant TAG]
 ```
 
 | Tham số | Giá trị | Mặc định |
 |---|---|---|
 | `dataset` | `beauty` \| `sports` \| `ml-1m` \| `steam` | bắt buộc |
-| `model` | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
-| `train_group_size` | số nguyên ≥ 2 (1 positive + N negatives) | `8` |
-| `variant` | hậu tố experiment, ví dụ `aug` | rỗng |
+| `--model` | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
+| `--group-size` | số nguyên ≥ 2 (1 positive + N-1 negatives) | `8` |
+| `--variant` | hậu tố experiment, ví dụ `aug` | rỗng |
 
 **`eval.sh`** — Đánh giá model (fine-tuned hoặc base):
 
 ```
-./eval.sh <dataset> [checkpoint] [model] [split] [variant]
+./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--variant TAG]
 ```
 
-| `checkpoint` | Hành động | Output |
+| `checkpoint` (positional) | Hành động | Output |
 |---|---|---|
 | `best` *(mặc định)* | Sweep checkpoints trên valid → chọn tốt nhất theo `ndcg_10` → evaluate | `eval_<split>_best.txt` |
 | `latest` | Final model sau training, không sweep (nhanh) | `eval_<split>_latest.txt` |
-| `base` | Base model **không fine-tune** (zero-shot baseline) — bỏ qua `variant` | `eval_<split>.txt` trong thư mục `-zeroshot` |
+| `base` | Base model **không fine-tune** (zero-shot baseline) — bỏ qua `--variant` | `eval_<split>.txt` trong thư mục `-zeroshot` |
 | `checkpoint-N` | Checkpoint cụ thể (debug) | `eval_<split>_checkpoint-N.txt` |
 
-| Tham số | Giá trị | Mặc định |
+| Flag | Giá trị | Mặc định |
 |---|---|---|
-| `split` | `valid` \| `test` | `test` |
-| `variant` | hậu tố model dir | rỗng |
+| `--model` | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
+| `--split` | `valid` \| `test` | `test` |
+| `--variant` | hậu tố model dir | rỗng |
 
-Khi truyền `variant`, cả `train.sh` và `eval.sh` đều dùng:
+Khi truyền `--variant`, cả `train.sh` và `eval.sh` đều dùng:
 - `train.sh`: đọc data từ `dataset/tevatron/<dataset>-<variant>/`, lưu model vào `output/<dataset>/<model_tag>-<variant>/`
 - `eval.sh`: tìm model tại `output/<dataset>/<model_tag>-<variant>/`
 
@@ -365,32 +366,36 @@ Khi truyền `variant`, cả `train.sh` và `eval.sh` đều dùng:
 ```bash
 source tevatron-env/bin/activate
 
-# Bước 1: Fine-tune
+# Bước 1: Fine-tune (default model, default settings)
 ./train.sh beauty
 
 # Bước 2: Tìm best checkpoint → kết quả test (workflow chính)
 ./eval.sh beauty
 ```
 
-### 4.3 Các cách chạy eval.sh
+### 4.3 Các cách chạy
 
 ```bash
-# Tìm best checkpoint tự động (khuyến nghị cho kết quả chính thức)
-./eval.sh beauty
+# ── train.sh ──────────────────────────────────────────────────
+./train.sh beauty                                    # all defaults
+./train.sh beauty --model Qwen/Qwen3-Embedding-4B   # model khác
+./train.sh beauty --group-size 16                   # nhiều negatives hơn
+./train.sh beauty --variant aug                     # augmented data
+./train.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug  # kết hợp
 
-# Evaluate final model nhanh (không sweep checkpoints)
-./eval.sh beauty latest
+# ── eval.sh ───────────────────────────────────────────────────
+./eval.sh beauty                        # best checkpoint → test
+./eval.sh beauty latest                 # final model → test
+./eval.sh beauty base                   # zero-shot baseline
+./eval.sh beauty checkpoint-1000        # debug checkpoint cụ thể
 
-# Zero-shot baseline — base model không fine-tune
-./eval.sh beauty base
+./eval.sh beauty --split valid          # evaluate trên valid set
+./eval.sh beauty --variant aug          # augmented model
+./eval.sh beauty latest --variant aug   # augmented, final model
 
-# Debug một checkpoint cụ thể
-./eval.sh beauty checkpoint-1000
-./eval.sh beauty checkpoint-1000 Qwen/Qwen3-Embedding-0.6B valid
-
-# Augmented experiment
-./eval.sh beauty best Qwen/Qwen3-Embedding-0.6B test aug
-./eval.sh beauty latest Qwen/Qwen3-Embedding-0.6B test aug
+./eval.sh beauty checkpoint-1000 \
+    --model Qwen/Qwen3-Embedding-0.6B \
+    --split valid                       # đầy đủ tham số
 ```
 
 Khi checkpoint không tồn tại, `eval.sh` tự liệt kê các checkpoint hiện có.
@@ -425,9 +430,12 @@ output/beauty/qwen3-embedding-0.6b/
 | `train_group_size` | 8 | 1 positive + 7 negatives, điều chỉnh qua tham số CLI |
 | Learning rate | 1e-4 | |
 | Epochs | 3 | |
-| Save steps | 200 | Tần suất lưu checkpoint |
+| Save steps | 2000 | Tần suất lưu checkpoint |
 | Query max len | 128 tokens | |
 | Passage max len | 196 tokens | |
+| `--append_eos_token` | bật | Thêm `tokenizer.eos_token_id` vào cuối mỗi sequence sau tokenize — đảm bảo `last` pooling lấy đúng token EOS của model. EOS khác nhau theo model: Qwen3=`<\|im_end\|>`, LLaMA-3=`<\|eot_id\|>`. **Không được bỏ flag này.** |
+| `--pooling last` | last | Last token pooling — lấy vector của EOS token làm embedding đại diện |
+| `--normalize` | bật | L2-normalize embedding trước khi tính similarity |
 
 **Điều chỉnh `train_group_size` và VRAM:**
 
@@ -490,17 +498,6 @@ cd ..
 ```
 
 > **Lưu ý ML-1M:** avg sequence length = 165, nên dùng `--max_aug_per_user 20` để giới hạn ~20 samples/user và tránh training quá lâu.
-
-### 4.8 Về `--append_eos_token` và `</s>` trong data
-
-Query format trong jsonl: `"Query: item1, item2, item3 </s>"`
-
-Chuỗi `</s>` là legacy từ LLaMA-2 (nơi đây là EOS token thực). Với **Qwen3**, EOS token là
-`<|im_end|>` — chuỗi `</s>` trong text chỉ là 3 token thường, không phải EOS.
-
-Flag `--append_eos_token` trong các scripts mới là thứ thực sự thêm `<|im_end|>` vào cuối
-sequence sau khi tokenize, đảm bảo `last` pooling lấy đúng token đại diện cho toàn bộ sequence.
-**Không được bỏ flag này** — nó áp dụng cho cả query lẫn corpus encoding để nhất quán với training.
 
 ---
 

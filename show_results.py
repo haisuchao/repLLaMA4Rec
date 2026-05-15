@@ -49,6 +49,7 @@ MODEL_LABELS = {
     "qwen2.5-3b":                      "Qwen2.5-3B · FT",
     "llama-3.2-1b-zeroshot":           "Llama-3.2-1B · zero-shot",
     "llama-3.2-1b":                    "Llama-3.2-1B · FT-8neg",
+    "cnnmamba4recv2":                  "CMamba4Rec",
 }
 
 # Thứ tự ưu tiên hiển thị trong bảng

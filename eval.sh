@@ -4,17 +4,17 @@
 #
 # Cách sử dụng: ./eval.sh <dataset> [checkpoint] [model] [split] [variant]
 #
-#   checkpoint:
+#   checkpoint (positional, tuỳ chọn):
 #     best         (mặc định) sweep tất cả checkpoints trên valid, chọn tốt nhất
 #                             theo ndcg_10, sau đó evaluate trên <split>
 #     latest       evaluate final model sau khi train xong tất cả epochs
 #     base         evaluate base model KHÔNG fine-tune (zero-shot baseline)
-#                  → bỏ qua variant, lưu vào output/<dataset>/<model_tag>-zeroshot/
+#                  → bỏ qua --variant, lưu vào output/<dataset>/<model_tag>-zeroshot/
 #     checkpoint-N evaluate một checkpoint cụ thể (ví dụ: checkpoint-1000)
 #
-#   model   : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)
-#   split   : valid | test  (mặc định: test)
-#   variant : hậu tố model dir, ví dụ 'aug' — bị bỏ qua khi checkpoint=base
+#   --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)
+#   --split SPLIT    : valid | test  (mặc định: test)
+#   --variant TAG    : hậu tố model dir, ví dụ 'aug' — bị bỏ qua khi checkpoint=base
 #
 # Output:
 #   best   mode → eval_<split>_best.txt    (dùng bởi show_results.py)
@@ -27,8 +27,10 @@
 #   ./eval.sh beauty latest
 #   ./eval.sh beauty base
 #   ./eval.sh beauty checkpoint-1000
-#   ./eval.sh beauty checkpoint-1000 Qwen/Qwen3-Embedding-0.6B valid
-#   ./eval.sh beauty best Qwen/Qwen3-Embedding-0.6B test aug
+#   ./eval.sh beauty --variant aug
+#   ./eval.sh beauty --split valid
+#   ./eval.sh beauty checkpoint-1000 --model Qwen/Qwen3-Embedding-0.6B --split valid
+#   ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug
 
 set -e
 # Chỉ giữ path chứa libcuda.so (driver), bỏ CUDA 11.8 toolkit để tránh xung đột
@@ -42,27 +44,50 @@ export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
-  echo "Cách sử dụng: ./eval.sh <dataset> [checkpoint] [model] [split] [variant]"
+  echo "Cách sử dụng: ./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--variant TAG]"
   echo ""
-  echo "  checkpoint : best (mặc định) | latest | base | checkpoint-N"
-  echo "  model      : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
-  echo "  split      : valid | test  (mặc định: test)"
-  echo "  variant    : hậu tố model dir (mặc định: rỗng)"
+  echo "  dataset          : beauty | sports | ml-1m | steam  (bắt buộc)"
+  echo "  checkpoint       : best (mặc định) | latest | base | checkpoint-N"
+  echo "  --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
+  echo "  --split SPLIT    : valid | test  (mặc định: test)"
+  echo "  --variant TAG    : hậu tố model dir, ví dụ 'aug'"
   echo ""
   echo "Ví dụ:"
   echo "  ./eval.sh beauty"
   echo "  ./eval.sh beauty latest"
   echo "  ./eval.sh beauty base"
   echo "  ./eval.sh beauty checkpoint-1000"
-  echo "  ./eval.sh beauty best Qwen/Qwen3-Embedding-0.6B test aug"
+  echo "  ./eval.sh beauty --variant aug"
+  echo "  ./eval.sh beauty --split valid"
+  echo "  ./eval.sh beauty checkpoint-1000 --model Qwen/Qwen3-Embedding-0.6B --split valid"
+  echo "  ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --variant aug"
   exit 1
 fi
 
 dataset=$1
-checkpoint=${2:-"best"}
-model=${3:-"Qwen/Qwen3-Embedding-0.6B"}
-split=${4:-"test"}
-variant=${5:-""}
+shift
+
+# Checkpoint: positional arg tuỳ chọn — nhận biết nếu không bắt đầu bằng '--'
+checkpoint="best"
+if [[ $# -gt 0 ]] && [[ "$1" != --* ]]; then
+  checkpoint="$1"
+  shift
+fi
+
+# Defaults
+model="Qwen/Qwen3-Embedding-0.6B"
+split="test"
+variant=""
+
+# Parse named flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)   model="$2";   shift 2 ;;
+    --split)   split="$2";   shift 2 ;;
+    --variant) variant="$2"; shift 2 ;;
+    *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./eval.sh để xem hướng dẫn."; exit 1 ;;
+  esac
+done
 
 case "$dataset" in
   beauty|sports|ml-1m|steam) ;;
