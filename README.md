@@ -268,7 +268,7 @@ python run_all.py beauty sports ml-1m
 python run_all.py --all
 ```
 
-Pipeline 5 bước (xem `dataset/README.md` để biết chi tiết):
+Pipeline 5 bước (xem **[dataset/README.md](dataset/README.md)** để biết chi tiết):
 1. Load dữ liệu thô
 2. 5-core filter (iterative — lọc cả user và item)
 3. Build sequences (sort theo timestamp, bỏ duplicate liên tiếp)

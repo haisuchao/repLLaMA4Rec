@@ -97,6 +97,35 @@ if [ ! -f "${CORPUS_PATH}" ]; then
   exit 1
 fi
 
+# Training hyperparameters — định nghĩa một lần, dùng chung cho deepspeed và train_config.json
+learning_rate="1e-4"
+num_epochs=3
+save_steps=1000
+query_max_len=128
+passage_max_len=196
+
+# Lưu config training để show_results.py tự sinh nhãn và mô tả experiment
+mkdir -p "${LORA_DIR}"
+cat > "${LORA_DIR}/train_config.json" << JSON
+{
+  "dataset": "${dataset}",
+  "model": "${model}",
+  "data_variant": "${data_variant}",
+  "tag": "${tag}",
+  "train_group_size": ${train_group_size},
+  "per_device_batch": ${per_device_batch},
+  "gradient_accumulation": ${grad_accum},
+  "learning_rate": "${learning_rate}",
+  "epochs": ${num_epochs},
+  "save_steps": ${save_steps},
+  "query_max_len": ${query_max_len},
+  "passage_max_len": ${passage_max_len},
+  "timestamp": "$(date -Iseconds)"
+}
+JSON
+echo "  Config saved → ${LORA_DIR}/train_config.json"
+echo ""
+
 deepspeed --include localhost:0 --master_port 60000 \
   --module tevatron.retriever.driver.train \
   --deepspeed ds_config.json \
@@ -118,12 +147,12 @@ deepspeed --include localhost:0 --master_port 60000 \
   --gradient_accumulation_steps ${grad_accum} \
   --gradient_checkpointing \
   --train_group_size ${train_group_size} \
-  --learning_rate 1e-4 \
-  --query_max_len 128 \
-  --passage_max_len 196 \
-  --num_train_epochs 3 \
+  --learning_rate ${learning_rate} \
+  --query_max_len ${query_max_len} \
+  --passage_max_len ${passage_max_len} \
+  --num_train_epochs ${num_epochs} \
   --logging_steps 100 \
-  --save_steps 2000
+  --save_steps ${save_steps}
 
 echo ""
 echo "✓ Model đã lưu tại: ${LORA_DIR}"

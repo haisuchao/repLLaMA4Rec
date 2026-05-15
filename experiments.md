@@ -39,9 +39,23 @@
 
 ---
 
+## Mô tả thực nghiệm (tự động)
+
+> Sinh tự động từ `train_config.json` bằng: `python show_results.py --update-experiments`
+
+<!-- AUTO_EXP_START -->
+_Chưa có experiment nào có train_config.json. Chạy train.sh để tự sinh._
+<!-- AUTO_EXP_END -->
+
+---
+
 ## Mô tả chi tiết các thực nghiệm
 
 ---
+
+<a id="exp-beauty-sasrec"></a>
+<a id="exp-sports-sasrec"></a>
+<a id="exp-ml-1m-sasrec"></a>
 
 ### EXP-B · SASRec (Baseline)
 
@@ -63,6 +77,9 @@ python run_recbole.py SASRec ml-1m
 
 ---
 
+<a id="exp-beauty-qwen3-embedding-0.6b-zeroshot"></a>
+<a id="exp-sports-qwen3-embedding-0.6b-zeroshot"></a>
+
 ### EXP-Q1 · Qwen3-0.6B zero-shot
 
 | Thuộc tính | Giá trị |
@@ -81,6 +98,8 @@ python run_recbole.py SASRec ml-1m
 ```
 
 ---
+
+<a id="exp-beauty-qwen3-embedding-0.6b"></a>
 
 ### EXP-Q2 · Qwen3-0.6B fine-tuned 50 neg · Beauty
 
@@ -106,6 +125,8 @@ python run_recbole.py SASRec ml-1m
 ```
 
 ---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-aug-3"></a>
 
 ### EXP-Q3 · Qwen3-0.6B + Augmented (window=3) 8 neg · Beauty
 
@@ -139,6 +160,8 @@ cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 
 ---
 
+<a id="exp-sports-qwen3-embedding-0.6b"></a>
+
 ### EXP-Q4 · Qwen3-0.6B fine-tuned 50 neg · Sports
 
 | Thuộc tính | Giá trị |
@@ -154,6 +177,8 @@ cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 ```
 
 ---
+
+<a id="exp-ml-1m-qwen3-embedding-0.6b"></a>
 
 ### EXP-Q5 · Qwen3-0.6B fine-tuned · ML-1M
 
@@ -180,6 +205,9 @@ cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 
 ---
 
+<a id="exp-beauty-llama-3.2-1b-zeroshot"></a>
+<a id="exp-sports-llama-3.2-1b-zeroshot"></a>
+
 ### EXP-L1 · Llama-3.2-1B zero-shot
 
 | Thuộc tính | Giá trị |
@@ -197,6 +225,8 @@ cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 ```
 
 ---
+
+<a id="exp-beauty-llama-3.2-1b"></a>
 
 ### EXP-L2 · Llama-3.2-1B fine-tuned · Beauty
 
@@ -222,6 +252,8 @@ cd dataset && python export_tevatron.py beauty --window_size 3 && cd ..
 ```
 
 ---
+
+<a id="exp-sports-llama-3.2-1b"></a>
 
 ### EXP-L3 · Llama-3.2-1B fine-tuned · Sports
 
