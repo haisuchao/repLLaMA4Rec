@@ -15,6 +15,7 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [Qwen3-Embedding-0.6B · bm25](#exp-beauty-qwen3-embedding-0.6b-bm25) | 0.0166 | 0.0255 | 0.0209 | 0.0388 | 0.0269 | 0.0626 | 0.0154 |
 | [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
 | [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
 | [qwen3-1.7b · zero-shot](#exp-beauty-qwen3-1.7b-zeroshot) | 0.0005 | 0.0007 | 0.0005 | 0.0009 | 0.0006 | 0.0013 | 0.0004 |
@@ -64,6 +65,8 @@
 | Save steps | 1000 |
 | Query max len | 128 |
 | Passage max len | 196 |
+| Best checkpoint | checkpoint-1000 |
+| Selection metric | ndcg_10 (valid) = 0.0244 |
 | Trained at | 2026-05-15T23:25:23+07:00 |
 
 ```bash
