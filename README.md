@@ -245,11 +245,11 @@ dataset/raw/ml-1m/
 
 ### Thống kê dataset sau tiền xử lý
 
-| Dataset | Users | Items | Interactions | Avg seq len | Max seq len |
-|---|---|---|---|---|---|
-| Amazon Beauty | 22,363 | 12,101 | 198,502 | 8.9 | 204 |
-| Amazon Sports | 35,598 | 18,357 | 296,337 | 8.3 | 296 |
-| MovieLens 1M | 6,040 | 3,416 | 999,611 | 165.5 | 2277 |
+| Dataset | Users | Items | Interactions | Avg seq len | Max seq len | Avg title words | P95 title words |
+|---|---|---|---|---|---|---|---|
+| Amazon Beauty | 22,363 | 12,101 | 198,502 | 8.9 | 204 | 10.9 | 18 |
+| Amazon Sports | 35,598 | 18,357 | 296,337 | 8.3 | 296 | 8.2 | 16 |
+| MovieLens 1M | 6,040 | 3,416 | 999,611 | 165.5 | 2277 | 4.0 | 7 |
 
 ---
 
@@ -327,7 +327,7 @@ Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh
 **`train.sh`** — Fine-tune model:
 
 ```
-./train.sh <dataset> [--model MODEL] [--group-size N] [--data-variant TAG] [--tag TAG]
+./train.sh <dataset> [--model MODEL] [--group-size N] [--epochs N] [--query-max-len N] [--data-variant TAG] [--tag TAG]
 ```
 
 | Tham số | Giá trị | Mặc định |
@@ -335,6 +335,8 @@ Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh
 | `dataset` | `beauty` \| `sports` \| `ml-1m` \| `steam` | bắt buộc |
 | `--model` | HuggingFace model ID | `Qwen/Qwen3-Embedding-0.6B` |
 | `--group-size` | số nguyên ≥ 2 (1 positive + N-1 negatives) | `8` |
+| `--epochs` | số training epochs | `3` |
+| `--query-max-len` | số token tối đa của query; tăng khi dùng `context_size` lớn | `128` |
 | `--data-variant` | đọc training data từ `dataset/tevatron/<dataset>-<TAG>/` | rỗng |
 | `--tag` | hậu tố output dir (`output/<dataset>/<model_tag>-<TAG>/`); mặc định lấy từ `--data-variant` | rỗng |
 
@@ -376,12 +378,15 @@ source tevatron-env/bin/activate
 # ── train.sh ──────────────────────────────────────────────────
 ./train.sh beauty                                         # all defaults
 ./train.sh beauty --model Qwen/Qwen3-Embedding-4B        # model khác
-./train.sh beauty --group-size 16                        # nhiều negatives hơn
-./train.sh beauty --data-variant w3                      # augmented data (tag = w3)
+./train.sh beauty --group-size 32 --tag gs32             # nhiều negatives hơn
+./train.sh beauty --epochs 5 --tag ep5                   # train lâu hơn
+./train.sh beauty --data-variant aug                     # augmented data (tag = aug)
 ./train.sh beauty --data-variant mixed                   # BM25 hard negatives
+./train.sh beauty --data-variant cs5                     # history length = 5 items
+./train.sh beauty --data-variant cs10 --query-max-len 160    # history length = 10 items (Beauty cần tăng len)
 ./train.sh beauty --data-variant w3 --tag w3-gs16 \
     --group-size 16                                      # data-variant + output tag riêng
-./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b  # model khác, tag tùy chỉnh
+./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b   # model khác, tag tùy chỉnh
 
 # ── eval.sh ───────────────────────────────────────────────────
 ./eval.sh beauty                          # best checkpoint → test (ndcg_10)
@@ -390,8 +395,9 @@ source tevatron-env/bin/activate
 ./eval.sh beauty checkpoint-1000          # debug checkpoint cụ thể
 
 ./eval.sh beauty --split valid            # evaluate trên valid set
-./eval.sh beauty --tag w3                 # model train với augmented data
-./eval.sh beauty latest --tag w3          # augmented, final model
+./eval.sh beauty --tag aug                # model train với augmented data
+./eval.sh beauty latest --tag aug         # augmented, final model
+./eval.sh beauty --tag cs5                # history length = 5 items
 ./eval.sh beauty --metric hr_10           # chọn best theo HR@10 thay vì NDCG@10
 
 ./eval.sh beauty checkpoint-1000 \
@@ -466,6 +472,29 @@ Tăng `--group-size` làm tăng VRAM tỷ lệ thuận. Với Qwen3-0.6B, các m
 
 Với model lớn (4B, 1B), `train.sh` đã set sẵn batch=1, accum=32 nên `--group-size` có thể tăng tự do đến khi OOM.
 
+**Chọn `--query-max-len` theo `context_size`:**
+
+`context_size` là số item gần nhất dùng làm query, được set khi export data bằng `--context_size N`.
+Bảng dưới dựa trên P95 token estimate (×1.3 từ word count) thực tế của từng dataset:
+
+| `context_size` | Beauty P95 tokens | Sports P95 tokens | ML-1M P95 tokens | `--query-max-len` |
+|---|---|---|---|---|
+| 3 *(mặc định)* | 66 | 49 | 25 | 128 *(mặc định, đủ cho cả 3 dataset)* |
+| 5 | 94 | 70 | 38 | 128 *(vẫn đủ)* |
+| 10 | 146 | 113 | 68 | 160 *(cần tăng với Beauty)* |
+
+```bash
+# context_size=3 — không cần thay đổi gì
+./train.sh beauty --data-variant cs3   # mặc định đã đúng
+
+# context_size=5 — 128 vẫn đủ
+./train.sh beauty --data-variant cs5
+
+# context_size=10 — cần tăng query_max_len cho Beauty
+./train.sh beauty --data-variant cs10 --query-max-len 160
+./train.sh sports --data-variant cs10             # 128 vẫn đủ với Sports
+```
+
 ### 4.6 Zero-shot evaluation (không fine-tune, không training)
 
 Dùng `checkpoint=base` trong `eval.sh` — không cần training, không cần checkpoint:
@@ -481,35 +510,54 @@ Corpus được **cache**: lần đầu encode xong, chạy lại với split kh
 
 ### 4.7 Tùy chỉnh data export
 
-`export_tevatron.py` là script thống nhất cho mọi tổ hợp query augmentation và negative sampling.
+`export_tevatron.py` là script thống nhất điều khiển 3 chiều độc lập: **history length**, **query augmentation**, và **negative sampling**. Ba chiều này có thể kết hợp tự do.
+
+**History Length — tăng số item trong query:**
+
+```bash
+cd dataset
+
+# context_size=5 — 5 items gần nhất (tag tự động: cs5)
+python export_tevatron.py beauty --context_size 5
+python export_tevatron.py sports --context_size 5
+
+# context_size=10 — 10 items gần nhất (tag tự động: cs10)
+python export_tevatron.py beauty --context_size 10
+cd ..
+
+# Train — nhớ tăng --query-max-len cho Beauty với cs=10
+./train.sh beauty --data-variant cs5
+./train.sh beauty --data-variant cs10 --query-max-len 160
+./eval.sh beauty --tag cs5
+./eval.sh beauty --tag cs10
+```
 
 **Query augmentation — sliding window:**
 
 ```bash
 cd dataset
 
-# Augmented window=3 (~7 samples/user với Beauty)
-python export_tevatron.py beauty --window_size 3
-python export_tevatron.py sports --window_size 3
+# context=3 (default), ~7 samples/user với Beauty (tag tự động: aug)
+python export_tevatron.py beauty --augment
+python export_tevatron.py sports --augment
 
 # ML-1M: giới hạn 20 samples/user (avg seq len = 165)
-python export_tevatron.py ml-1m --window_size 3 --max_aug_per_user 20
+python export_tevatron.py ml-1m --augment --max_aug_per_user 20
 
-# Window lớn hơn
-python export_tevatron.py beauty --window_size 5
+# context=5, augmented (tag tự động: cs5-aug)
+python export_tevatron.py beauty --augment --context_size 5
 cd ..
 
-# Train với augmented data (--data-variant khớp với tag data, output tag tự động = w3)
-./train.sh beauty --data-variant w3
-./eval.sh beauty --tag w3
+./train.sh beauty --data-variant aug
+./eval.sh beauty --tag aug
 ```
 
 **BM25 Hard Negative Mining:**
 
 ```bash
 cd dataset
-python export_tevatron.py beauty --neg_strategy mixed        # 10 hard + 40 random
-python export_tevatron.py beauty --neg_strategy bm25         # 50 BM25 hard
+python export_tevatron.py beauty --neg_strategy mixed        # 10 hard + 40 random (tag: mixed)
+python export_tevatron.py beauty --neg_strategy bm25         # 50 BM25 hard (tag: bm25)
 python export_tevatron.py beauty --neg_strategy mixed \
     --num_hard_neg 20 --num_random_neg 30                    # tùy chỉnh ratio
 cd ..
@@ -518,27 +566,41 @@ cd ..
 ./eval.sh beauty --tag mixed
 ```
 
-**Kết hợp augmentation + BM25:**
+**Kết hợp tự do — ví dụ:**
 
 ```bash
 cd dataset
-python export_tevatron.py beauty --window_size 3 --neg_strategy mixed
+# context_size=5 + BM25 mixed negatives → tag: cs5-mixed
+python export_tevatron.py beauty --context_size 5 --neg_strategy mixed
+
+# augmentation + BM25 mixed → tag: aug-mixed
+python export_tevatron.py beauty --augment --neg_strategy mixed
+
+# context_size=5 + augmentation + BM25 mixed → tag: cs5-aug-mixed
+python export_tevatron.py beauty --context_size 5 --augment --neg_strategy mixed
 cd ..
 
-./train.sh beauty --data-variant w3-mixed
-./eval.sh beauty --tag w3-mixed
+./train.sh beauty --data-variant cs5-mixed
+./train.sh beauty --data-variant aug-mixed
+./train.sh beauty --data-variant cs5-aug-mixed
 ```
 
-So sánh các tổ hợp:
+**Bảng tổng hợp tag tự động:**
 
-| Command | Tag | Samples/user | Negatives |
+| Tùy chọn | Auto tag | Data dir | Train command |
 |---|---|---|---|
-| `export_tevatron.py beauty` | `""` | 1 | 50 random |
-| `... --window_size 3` | `w3` | N−3 (~7) | 50 random |
-| `... --neg_strategy mixed` | `mixed` | 1 | 10 hard + 40 random |
-| `... --window_size 3 --neg_strategy mixed` | `w3-mixed` | N−3 (~7) | 10 hard + 40 random |
+| mặc định | `""` | `beauty/` | `./train.sh beauty` |
+| `--context_size 5` | `cs5` | `beauty-cs5/` | `./train.sh beauty --data-variant cs5` |
+| `--context_size 10` | `cs10` | `beauty-cs10/` | `./train.sh beauty --data-variant cs10 --query-max-len 160` |
+| `--augment` | `aug` | `beauty-aug/` | `./train.sh beauty --data-variant aug` |
+| `--context_size 5 --augment` | `cs5-aug` | `beauty-cs5-aug/` | `./train.sh beauty --data-variant cs5-aug` |
+| `--neg_strategy mixed` | `mixed` | `beauty-mixed/` | `./train.sh beauty --data-variant mixed` |
+| `--augment --neg_strategy mixed` | `aug-mixed` | `beauty-aug-mixed/` | `./train.sh beauty --data-variant aug-mixed` |
+| `--context_size 5 --augment --neg_strategy mixed` | `cs5-aug-mixed` | `beauty-cs5-aug-mixed/` | `./train.sh beauty --data-variant cs5-aug-mixed` |
 
-> **Lưu ý ML-1M:** avg sequence length = 165, nên dùng `--max_aug_per_user 20` để giới hạn ~20 samples/user và tránh training quá lâu.
+> **Lưu ý ML-1M:** avg sequence length = 165, nên dùng `--max_aug_per_user 20` khi augmentation để tránh training quá lâu.
+>
+> **Lưu ý `--query-max-len`:** Chỉ cần tăng với Beauty + `context_size=10` (P95=146 tokens). Sports và ML-1M vẫn đủ với 128 ở mọi context_size ≤ 10.
 
 ---
 

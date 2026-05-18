@@ -1,59 +1,58 @@
 """
 export_tevatron.py (unified)
 ============================
-Xuất dữ liệu Tevatron với các tùy chọn kết hợp tự do:
+Xuất dữ liệu Tevatron với 3 chiều tùy chỉnh độc lập:
 
-  Query augmentation (--window_size):
-    Không truyền    → 1 sample/user (dùng precomputed context từ preprocess)
-    --window_size N → sliding window kích thước N, sinh N-3 samples/user
+  Context size (--context_size N):
+    Số item gần nhất lấy từ history để làm query — áp dụng cho CẢ HAI mode.
+    Mặc định = CONTEXT_SIZE = 3 (từ preprocess.py).
+    Khi context_size > 5, nên tăng --query-max-len trong train.sh (xem bảng ở README).
+
+  Query augmentation (--augment):
+    Không truyền → 1 sample/user (standard mode)
+    --augment    → sliding window, sinh N-3 samples/user (augmented mode)
+    --max_aug_per_user N → giới hạn samples/user (khuyến nghị 20 cho ml-1m)
 
   Negative sampling (--neg_strategy  --num_hard_neg  --num_random_neg):
-
-    random (mặc định)
-      Toàn bộ pool là random negatives.
-      Số lượng = num_hard_neg + num_random_neg (mặc định 10+40 = 50/query).
-
-    bm25
-      Toàn bộ pool là BM25 hard negatives (top scored từ BM25 index).
-      Số lượng = num_hard_neg + num_random_neg (mặc định 10+40 = 50/query).
-
-    mixed
-      Pool gồm hai phần: num_hard_neg BM25 hard + num_random_neg random.
-      Mặc định: 10 hard + 40 random = 50/query.
-      Tevatron sẽ sample train_group_size-1 negatives từ pool này mỗi step.
+    random (mặc định) → 50 random negatives/query
+    bm25              → 50 BM25 hard negatives/query
+    mixed             → 10 BM25 hard + 40 random = 50/query (mặc định)
 
 Output: dataset/tevatron/<dataset>[-<tag>]/
   corpus.jsonl, train.jsonl, valid.jsonl, test.jsonl
 
 Tag được tự động sinh từ tham số:
-  window_size=None, neg=random  → ""         → beauty/
-  window_size=3,    neg=random  → "w3"       → beauty-w3/
-  window_size=None, neg=mixed   → "mixed"    → beauty-mixed/
-  window_size=3,    neg=mixed   → "w3-mixed" → beauty-w3-mixed/
+  cs=3, augment=False, neg=random  → ""          → beauty/
+  cs=5, augment=False, neg=random  → "cs5"        → beauty-cs5/
+  cs=3, augment=True,  neg=random  → "aug"        → beauty-aug/
+  cs=5, augment=True,  neg=random  → "cs5-aug"    → beauty-cs5-aug/
+  cs=3, augment=False, neg=mixed   → "mixed"      → beauty-mixed/
+  cs=5, augment=True,  neg=mixed   → "cs5-aug-mixed" → beauty-cs5-aug-mixed/
   (Override với --tag)
 
 Ví dụ:
 
-  # Standard — 1 sample/user, 50 random negatives (mặc định)
+  # Standard — 1 sample/user, context=3 (mặc định)
   python export_tevatron.py beauty
 
-  # Augmented — sliding window=3, 50 random negatives
-  python export_tevatron.py beauty --window_size 3
+  # Context size lớn hơn — 5 / 10 items làm query
+  python export_tevatron.py beauty --context_size 5    # → beauty-cs5/
+  python export_tevatron.py beauty --context_size 10   # → beauty-cs10/
 
-  # BM25 hard — 1 sample/user, 50 BM25 hard negatives
-  python export_tevatron.py beauty --neg_strategy bm25
+  # Augmented — sliding window, context=3 (mặc định)
+  python export_tevatron.py beauty --augment           # → beauty-aug/
 
-  # Mixed — 1 sample/user, 10 BM25 hard + 40 random negatives (mặc định ratio)
+  # Augmented — sliding window, context=5
+  python export_tevatron.py beauty --augment --context_size 5  # → beauty-cs5-aug/
+
+  # ML-1M: augmented, giới hạn 20 samples/user
+  python export_tevatron.py ml-1m --augment --max_aug_per_user 20
+
+  # Mixed negatives — 10 BM25 hard + 40 random
   python export_tevatron.py beauty --neg_strategy mixed
 
-  # Mixed — tùy chỉnh ratio: 20 hard + 30 random = 50/query
-  python export_tevatron.py beauty --neg_strategy mixed --num_hard_neg 20 --num_random_neg 30
-
-  # Augmented + Mixed — sliding window=3, 10 BM25 hard + 40 random negatives
-  python export_tevatron.py beauty --window_size 3 --neg_strategy mixed
-
-  # ML-1M: giới hạn 20 samples/user, augmented + mixed negatives
-  python export_tevatron.py ml-1m --window_size 3 --max_aug_per_user 20 --neg_strategy mixed
+  # Tất cả kết hợp: context=5, augmented, mixed negatives
+  python export_tevatron.py beauty --context_size 5 --augment --neg_strategy mixed
 """
 
 import argparse
@@ -196,10 +195,12 @@ def sample_negatives(
 
 # ── Auto tag ──────────────────────────────────────────────────────────────────
 
-def auto_tag(window_size: int | None, neg_strategy: str) -> str:
+def auto_tag(context_size: int, augment: bool, neg_strategy: str) -> str:
     parts = []
-    if window_size is not None:
-        parts.append(f"w{window_size}")
+    if context_size != CONTEXT_SIZE:
+        parts.append(f"cs{context_size}")
+    if augment:
+        parts.append("aug")
     if neg_strategy != "random":
         parts.append(neg_strategy)
     return "-".join(parts)
@@ -209,7 +210,8 @@ def auto_tag(window_size: int | None, neg_strategy: str) -> str:
 
 def export_tevatron(
     dataset_name: str,
-    window_size: int | None = None,
+    context_size: int = CONTEXT_SIZE,
+    augment: bool = False,
     max_aug_per_user: int | None = None,
     neg_strategy: str = "random",
     num_hard: int = 10,
@@ -218,11 +220,11 @@ def export_tevatron(
 ):
     """
     Entry point cho cả import lẫn CLI.
-    tag=None → auto_tag(window_size, neg_strategy).
+    tag=None → auto_tag(context_size, augment, neg_strategy).
     tag=""   → xuất thẳng vào <dataset>/ (không có hậu tố).
     """
     if tag is None:
-        tag = auto_tag(window_size, neg_strategy)
+        tag = auto_tag(context_size, augment, neg_strategy)
 
     splits, all_items, item_meta, all_items_set, sequences = preprocess(dataset_name)
     all_items_list = list(all_items_set if isinstance(all_items_set, set) else all_items)
@@ -234,11 +236,12 @@ def export_tevatron(
     # ── Print config ──────────────────────────────────────────────────────────
     print(f"\n{'─' * 60}")
     print(f"Tevatron export → {out_dir}/")
-    if window_size is None:
-        print(f"  query aug  : off (1 sample/user)")
+    if not augment:
+        cs_note = "" if context_size == CONTEXT_SIZE else f" (context_size={context_size})"
+        print(f"  query aug  : off (1 sample/user){cs_note}")
     else:
-        print(f"  query aug  : sliding window={window_size}"
-              + (f", max {max_aug_per_user}/user" if max_aug_per_user else ""))
+        aug_note = f", max {max_aug_per_user}/user" if max_aug_per_user else ""
+        print(f"  query aug  : on (sliding window, context={context_size}{aug_note})")
     if neg_strategy == "random":
         print(f"  negatives  : random × {num_hard + num_random}")
     else:
@@ -278,17 +281,21 @@ def export_tevatron(
             user_items = set(seq)
 
             # Tạo list (context, positive, query_id_suffix) cho user này
-            if window_size is None:
-                # Standard: 1 sample/user — dùng context đã tính sẵn (xử lý đúng cold-start)
-                data      = splits["train"][user_id]
-                positions = [(data["tevatron_context"], data["positive"], "train")]
+            if not augment:
+                # Standard: 1 sample/user
+                # context_size == CONTEXT_SIZE: dùng precomputed (xử lý đúng cold-start)
+                # context_size != CONTEXT_SIZE: tính lại từ sequence với size mới
+                data = splits["train"][user_id]
+                ctx  = data["tevatron_context"] if context_size == CONTEXT_SIZE \
+                       else seq[: N - 3][-context_size:]
+                positions = [(ctx, data["positive"], "train")]
             else:
                 # Augmented: sliding window qua tất cả train positions
                 train_pos = list(range(1, N - 2))
                 if max_aug_per_user and len(train_pos) > max_aug_per_user:
                     train_pos = train_pos[-max_aug_per_user:]
                 positions = [
-                    (seq[max(0, j - window_size) : j], seq[j], f"train_{j}")
+                    (seq[max(0, j - context_size) : j], seq[j], f"train_{j}")
                     for j in train_pos
                 ]
 
@@ -316,7 +323,7 @@ def export_tevatron(
                 }, ensure_ascii=False) + "\n")
                 total_train += 1
 
-    if window_size is not None:
+    if augment:
         orig = len(sequences)
         print(f"  train.jsonl    : {total_train:>6} samples  "
               f"({total_train / orig:.1f}× original {orig})")
@@ -325,16 +332,24 @@ def export_tevatron(
     print(f"    cold-start (empty context): {cold_start} samples")
 
     # ── valid.jsonl / test.jsonl ──────────────────────────────────────────────
+    # offset: valid predict item N-1 → context từ seq[:N-2]; test predict N → seq[:N-1]
+    split_offsets = {"valid": 2, "test": 1}
     for split_name in ["valid", "test"]:
         split_data = splits[split_name]
+        offset     = split_offsets[split_name]
         out_path   = os.path.join(out_dir, f"{split_name}.jsonl")
         with open(out_path, "w", encoding="utf-8") as f:
             for user_id, data in tqdm(
                 split_data.items(), desc=f"  {split_name:5s}", unit="query"
             ):
+                if context_size == CONTEXT_SIZE:
+                    ctx = data["tevatron_context"]
+                else:
+                    seq = sequences[user_id]
+                    ctx = seq[: len(seq) - offset][-context_size:]
                 f.write(json.dumps({
                     "query_id":          f"{user_id}_{split_name}",
-                    "query":             build_query(data["tevatron_context"], item_meta),
+                    "query":             build_query(ctx, item_meta),
                     "positive_passages": [make_passage(data["positive"], item_meta)],
                     "negative_passages": [],
                 }, ensure_ascii=False) + "\n")
@@ -352,16 +367,20 @@ def main():
     )
     parser.add_argument("dataset", help="beauty | sports | ml-1m | steam")
 
-    aug = parser.add_argument_group("Query augmentation")
+    aug = parser.add_argument_group("Query augmentation & context")
     aug.add_argument(
-        "--window_size", type=int, default=None,
+        "--context_size", type=int, default=CONTEXT_SIZE,
         metavar="N",
-        help="Sliding window size (default: off — 1 sample/user)",
+        help=f"Số item gần nhất dùng làm query — áp dụng cả hai mode (default: {CONTEXT_SIZE})",
+    )
+    aug.add_argument(
+        "--augment", action="store_true",
+        help="Bật sliding window augmentation — sinh N-3 samples/user thay vì 1",
     )
     aug.add_argument(
         "--max_aug_per_user", type=int, default=None,
         metavar="N",
-        help="Max samples/user for augmentation — recommend 20 for ml-1m",
+        help="Max samples/user khi augment — recommend 20 for ml-1m",
     )
 
     neg = parser.add_argument_group("Negative sampling")
@@ -389,13 +408,14 @@ def main():
     args = parser.parse_args()
 
     export_tevatron(
-        dataset_name   = args.dataset,
-        window_size    = args.window_size,
+        dataset_name     = args.dataset,
+        context_size     = args.context_size,
+        augment          = args.augment,
         max_aug_per_user = args.max_aug_per_user,
-        neg_strategy   = args.neg_strategy,
-        num_hard       = args.num_hard_neg,
-        num_random     = args.num_random_neg,
-        tag            = args.tag,
+        neg_strategy     = args.neg_strategy,
+        num_hard         = args.num_hard_neg,
+        num_random       = args.num_random_neg,
+        tag              = args.tag,
     )
 
 
