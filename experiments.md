@@ -1,6 +1,6 @@
 # Kết quả thực nghiệm
 
-> Cập nhật lần cuối: 2026-05-13
+> Cập nhật lần cuối: 2026-05-18
 >
 > **Ký hiệu trạng thái:** ✅ Hoàn thành · ⏳ Đang chạy / chưa eval · ❌ Thất bại
 
@@ -15,6 +15,10 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [GRU4Rec †](#exp-paper-baselines) | 0.0099 | 0.0164 | 0.0137 | 0.0283 | — | — | — |
+| [BERT4Rec †](#exp-paper-baselines) | 0.0124 | 0.0203 | 0.0170 | 0.0347 | — | — | — |
+| [SASRec †](#exp-paper-baselines) | 0.0249 | 0.0387 | 0.0318 | 0.0605 | — | — | — |
+| [TIGER †](#exp-paper-baselines) | 0.0321 | 0.0454 | 0.0384 | 0.0648 | — | — | — |
 | [Qwen3-Embedding-0.6B · bm25](#exp-beauty-qwen3-embedding-0.6b-bm25) | 0.0166 | 0.0255 | 0.0209 | 0.0388 | 0.0269 | 0.0626 | 0.0154 |
 | [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
 | [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
@@ -29,6 +33,10 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [GRU4Rec †](#exp-paper-baselines) | 0.0086 | 0.0129 | 0.0110 | 0.0204 | — | — | — |
+| [BERT4Rec †](#exp-paper-baselines) | 0.0075 | 0.0115 | 0.0099 | 0.0191 | — | — | — |
+| [SASRec †](#exp-paper-baselines) | 0.0154 | 0.0233 | 0.0192 | 0.0350 | — | — | — |
+| [TIGER †](#exp-paper-baselines) | 0.0181 | 0.0264 | 0.0225 | 0.0400 | — | — | — |
 | [llama-3.2-1b · zero-shot](#exp-sports-llama-3.2-1b-zeroshot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
 | [qwen3-embedding-0.6b · zero-shot](#exp-sports-qwen3-embedding-0.6b-zeroshot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
 
@@ -39,6 +47,8 @@
 | [qwen3-embedding-0.6b](#exp-ml-1m-qwen3-embedding-0.6b) | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
 
 <!-- RESULTS_END -->
+
+> **† Kết quả từ paper**: GRU4Rec, BERT4Rec, SASRec lấy từ bảng kết quả S³-Rec (Zhou et al., CIKM 2020) được trích dẫn lại trong TIGER (Rajput et al., NeurIPS 2023). TIGER là kết quả gốc của paper đó. Protocol tương thích: Amazon 2014, 5-core filter, leave-one-out split, full ranking. Metric `HR@K = Recall@K` khi chỉ có 1 item relevant. Không có số liệu @20 và MRR từ paper gốc. Không có kết quả ML-1M trong paper này.
 
 ---
 
@@ -81,6 +91,29 @@
 ---
 
 ## Mô tả chi tiết các thực nghiệm
+
+---
+
+<a id="exp-paper-baselines"></a>
+
+### EXP-P · Paper Baselines (TIGER, NeurIPS 2023)
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Nguồn | Rajput et al., "Recommender Systems with Generative Retrieval", NeurIPS 2023 (arXiv:2305.05065) |
+| Dataset | Amazon Beauty · Amazon Sports and Outdoors (phiên bản 2014, McAuley) |
+| Filter | 5-core (loại user < 5 reviews) |
+| Split | Leave-one-out: item cuối = test, áp chót = valid |
+| Evaluation | Full ranking trên toàn bộ corpus |
+| Metrics | Recall@5, NDCG@5, Recall@10, NDCG@10 (không có @20, MRR) |
+| Lưu ý | GRU4Rec / BERT4Rec / SASRec: kết quả lấy từ S³-Rec (Zhou et al., CIKM 2020), không reproduce độc lập. TIGER là mô hình đề xuất của paper. |
+
+**Mô tả các model:**
+
+- **GRU4Rec** (Hidasi et al., 2015): RNN-based, dùng GRU để model sequential interactions theo session.
+- **BERT4Rec** (Sun et al., CIKM 2019): Bidirectional Transformer với masked item prediction, dùng toàn bộ interaction history.
+- **SASRec** (Kang & McAuley, ICDM 2018): Causal self-attention Transformer, chỉ nhìn các item trước đó.
+- **TIGER** (Rajput et al., NeurIPS 2023): Generative retrieval — encode item thành Semantic ID (RQ-VAE trên SentenceT5 embeddings), dùng Transformer seq2seq để predict Semantic ID của item tiếp theo. Giới hạn lịch sử training ở 20 items.
 
 ---
 
