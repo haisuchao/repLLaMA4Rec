@@ -56,8 +56,7 @@ dataset/
     └── recbole/
         └── <dataset>/
             ├── <dataset>.inter
-            ├── <dataset>.item
-            └── sasrec_<dataset>.yaml
+            └── <dataset>.item
 ```
 
 ---
@@ -279,7 +278,7 @@ B00006L9LC      Citre Shine Shampoo         Unilever          Beauty Hair Care
 B0012Y0ZG2      Neutrogena T/Gel Shampoo    Neutrogena        Beauty Hair Care
 ```
 
-**`sasrec_<dataset>.yaml`** — config SASRec tự sinh với `MAX_ITEM_LIST_LENGTH` bằng độ dài sequence lớn nhất, cho phép SASRec dùng **toàn bộ history**:
+**`recbole/props/<dataset>/sasrec.yaml`** — config SASRec tự sinh (nằm ở root project, không ở `dataset/`) với `MAX_ITEM_LIST_LENGTH` bằng độ dài sequence lớn nhất, cho phép SASRec dùng **toàn bộ history**:
 
 ```yaml
 MAX_ITEM_LIST_LENGTH: 52   # = max sequence length trong dataset

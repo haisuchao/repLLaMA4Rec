@@ -93,10 +93,10 @@ model      : Qwen/Qwen3-Embedding-0.6B
 
 | Config | Tag | NDCG@5 | NDCG@10 | HR@10 | MRR@10 | Time vs baseline | Δ NDCG@10 (rel.) | Quyết định |
 |---|---|---|---|---|---|---|---|---|
-| gs=8 *(baseline)* | — | 0.0251 | 0.0372 | 0.0861 | 0.0224 | 1.0× | — | ✅ baseline |
-| gs=16 | gs16 | | | | | ~1.0× | | |
-| gs=32 | gs32 | | | | | ~1.0× | | |
-| gs=50 | gs50 | | | | | ~0.6× | | |
+| gs=8 *(baseline)* | gs8 | 0.0217 | 0.0329 | 0.0775 | 0.0195 | 1.0× | — | ✅ baseline |
+| gs=16 | gs16 | 0.0226 | 0.0344 | 0.0803 | 0.0206 | ~2.0× | | |
+| gs=32 | gs32 | 0.0234 | 0.0360 | 0.0840 | 0.0215 | ~3.0× | | |
+| gs=50 | — | 0.0251 | 0.0372 | 0.0861 | 0.0224 | ~5.0× | — | ✅ baseline |
 
 ### Quy tắc quyết định
 
@@ -106,7 +106,7 @@ model      : Qwen/Qwen3-Embedding-0.6B
 
 ### Carry-forward → Phase 2
 ```
-BEST_GS = ___   # điền giá trị được chọn
+BEST_GS = 50   # điền giá trị được chọn
 BEST_TAG = gs{BEST_GS}   # hoặc "" nếu giữ baseline
 ```
 

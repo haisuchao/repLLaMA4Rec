@@ -1,0 +1,65 @@
+# ============================================================
+# Auto-generated SASRec config for: sports
+# ============================================================
+# Dataset stats:
+#   Users        : 35598
+#   Items        : 18357
+#   Interactions : 296337
+#   Sparsity     : 0.9995
+#   Seq len      : avg=8.3, max=296
+#
+# Key difference vs Tevatron:
+#   RecBole uses up to MAX_ITEM_LIST_LENGTH=200 most recent items
+#   Tevatron uses only 3 most recent items as query
+# ============================================================
+
+data_path: dataset/recbole
+dataset: sports
+
+# ── Dataset fields ───────────────────────────────────────────
+# Phải load timestamp để RecBole sort theo thứ tự thời gian (order: TO)
+TIME_FIELD: timestamp
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+# ── Model ────────────────────────────────────────────────────
+model: SASRec
+hidden_size: 64
+inner_size: 256
+n_layers: 2
+n_heads: 2
+hidden_dropout_prob: 0.5
+attn_dropout_prob: 0.5
+hidden_act: gelu
+layer_norm_eps: 1.0e-12
+initializer_range: 0.02
+loss_type: CE
+train_neg_sample_args: ~  # CE loss tự xử lý negatives nội bộ
+
+# Capped tại 200 để tránh OOM với self-attention O(n²)
+# Dataset max seq len = 296
+MAX_ITEM_LIST_LENGTH: 200
+
+# ── Training ─────────────────────────────────────────────────
+epochs: 200
+train_batch_size: 256
+eval_batch_size: 512
+learner: adam
+learning_rate: 0.001
+weight_decay: 0.0
+stopping_step: 10          # early stopping
+
+# ── Evaluation ───────────────────────────────────────────────
+# Leave-one-out split giống SASRec paper và cách chia của Tevatron:
+#   item cuối    → test target
+#   item áp chót → valid target
+#   phần còn lại → train
+eval_args:
+  split: {LS: valid_and_test}
+  group_by: user
+  order: TO                  # Time Order — bắt buộc với sequential models
+  mode: full                 # Rank trên toàn bộ 18357 items
+
+metrics: [Recall, NDCG, MRR, Hit]
+topk: [10, 20]
+valid_metric: NDCG@10

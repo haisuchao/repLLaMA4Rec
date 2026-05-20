@@ -1,0 +1,57 @@
+# ============================================================
+# CMamba4Rec config for: sports
+# CNN + Mamba Sequential Recommender
+# Run: python run_recbole.py recbole.cmamba4rec.CMamba4Rec sports
+# ============================================================
+
+data_path: dataset/recbole
+dataset: sports
+
+# ── Dataset fields ───────────────────────────────────────────
+TIME_FIELD: timestamp
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+# ── Model ────────────────────────────────────────────────────
+model: CMamba4Rec
+hidden_size: 64
+n_layers: 2
+dropout_prob: 0.5
+loss_type: CE
+train_neg_sample_args: ~
+
+# Mamba SSM hyperparameters
+d_state: 16        # SSM state dimension
+d_conv: 4          # Mamba internal conv kernel size
+expand: 2          # Expansion factor (inner_dim = expand * hidden_size)
+
+# CNN hyperparameters
+cnn_size: 3        # Conv1d kernel size
+
+# Sequence
+MAX_ITEM_LIST_LENGTH: 200
+max_seq_length: 200   # phải khớp với MAX_ITEM_LIST_LENGTH
+
+# Multi-intent (tắt mặc định)
+multi_intent: False
+beta: 0.5
+
+# ── Training ─────────────────────────────────────────────────
+epochs: 300
+train_batch_size: 256
+eval_batch_size: 512
+learner: adam
+learning_rate: 0.001
+weight_decay: 0.0
+stopping_step: 20
+
+# ── Evaluation ───────────────────────────────────────────────
+eval_args:
+  split: {LS: valid_and_test}
+  group_by: user
+  order: TO
+  mode: full
+
+metrics: [Recall, NDCG, MRR, Hit]
+topk: [5, 10, 20]
+valid_metric: NDCG@10

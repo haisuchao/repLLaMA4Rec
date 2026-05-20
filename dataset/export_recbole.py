@@ -3,10 +3,12 @@ export_recbole.py
 =================
 Xuất dữ liệu sang định dạng RecBole cho SASRec:
 
-  dataset/recbole/<dataset_name>/
+  dataset/dataset/recbole/<dataset_name>/     ← data files
     ├── <dataset_name>.inter          – toàn bộ interactions (full history)
-    ├── <dataset_name>.item           – metadata của item
-    └── sasrec_<dataset_name>.yaml    – config SASRec tự sinh
+    └── <dataset_name>.item           – metadata của item
+
+  recbole/props/<dataset_name>/               ← config files (như MiaSRec's props/)
+    └── sasrec.yaml                  – config SASRec tự sinh
 
 Triết lý khác biệt với Tevatron:
   RecBole/SASRec dùng TOÀN BỘ history của user.
@@ -29,7 +31,14 @@ from preprocess import preprocess, build_item_text, CONTEXT_SIZE
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
-OUTPUT_BASE          = "dataset/recbole"
+# Data files (.inter, .item) — relative to dataset/ working dir
+OUTPUT_BASE = "dataset/recbole"
+
+# YAML configs — luôn tính từ vị trí script để đúng bất kể working dir
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DIR   = os.path.dirname(_SCRIPT_DIR)
+PROPS_BASE  = os.path.join(_ROOT_DIR, "recbole", "props")
+
 MAX_ITEM_LIST_LENGTH = 200   # cap để tránh OOM với self-attention O(n²)
 
 
@@ -79,7 +88,7 @@ def export_recbole(dataset_name: str):
         f"{len(all_items_list):>6} items              → {item_path}"
     )
 
-    # ── sasrec_<dataset>.yaml: config tự sinh ────────────────────────────────
+    # ── recbole/props/<dataset>/sasrec.yaml: config tự sinh ──────────────────
     seq_lens    = [len(s) for s in sequences.values()]
     max_seq_len = max(seq_lens)
     avg_seq_len = sum(seq_lens) / len(seq_lens)
@@ -87,7 +96,9 @@ def export_recbole(dataset_name: str):
     # Cap MAX_ITEM_LIST_LENGTH để tránh OOM với self-attention O(n²)
     max_item_list_length = min(max_seq_len, MAX_ITEM_LIST_LENGTH)
 
-    config_path = os.path.join(out_dir, f"sasrec_{dataset_name}.yaml")
+    props_dir   = os.path.join(PROPS_BASE, dataset_name)
+    os.makedirs(props_dir, exist_ok=True)
+    config_path = os.path.join(props_dir, "sasrec.yaml")
     with open(config_path, "w", encoding="utf-8") as f:
         f.write(f"""\
 # ============================================================
@@ -157,14 +168,15 @@ topk: [10, 20]
 valid_metric: NDCG@10
 """)
     print(
-        f"  [RecBole] sasrec_{dataset_name}.yaml: "
-        f"MAX_ITEM_LIST_LENGTH={max_seq_len} → {config_path}"
+        f"  [RecBole] sasrec.yaml: "
+        f"MAX_ITEM_LIST_LENGTH={max_item_list_length} → {config_path}"
     )
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n  Full history   : YES (avg {avg_seq_len:.1f} items/user)")
     print(f"  Tevatron uses  : {CONTEXT_SIZE} items/query (context window)")
-    print(f"  Output dir     : {out_dir}/")
+    print(f"  Data dir       : {out_dir}/")
+    print(f"  Props dir      : {props_dir}/")
 
 
 if __name__ == "__main__":

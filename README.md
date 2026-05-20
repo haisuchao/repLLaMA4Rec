@@ -4,6 +4,42 @@
 
 ---
 
+## Mục lục
+
+- [Ý tưởng](#ý-tưởng)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Yêu cầu phần cứng](#yêu-cầu-phần-cứng)
+- [1. Cài đặt môi trường](#1-cài-đặt-môi-trường)
+  - [1.1 Môi trường repLLaMA (Tevatron)](#11-môi-trường-repllama-tevatron)
+  - [1.2 Môi trường RecBole](#12-môi-trường-recbole-sasrec-và-các-model-khác)
+- [2. Chuẩn bị dữ liệu thô](#2-chuẩn-bị-dữ-liệu-thô)
+- [3. Tiền xử lý dữ liệu](#3-tiền-xử-lý-dữ-liệu)
+- [4. repLLaMA — Training & Evaluation](#4-repllama--training--evaluation)
+  - [4.0 Lựa chọn Base Model](#40-lựa-chọn-base-model)
+  - [4.1 Tham số của các scripts](#41-tham-số-của-các-scripts)
+  - [4.2 Workflow khuyến nghị](#42-workflow-khuyến-nghị)
+  - [4.3 Các cách chạy](#43-các-cách-chạy)
+  - [4.4 Ví dụ chạy đầy đủ cho Beauty](#44-ví-dụ-chạy-đầy-đủ-cho-beauty)
+  - [4.5 Cấu hình training](#45-cấu-hình-training)
+  - [4.6 Zero-shot evaluation](#46-zero-shot-evaluation-không-fine-tune-không-training)
+  - [4.7 Tùy chỉnh data export](#47-tùy-chỉnh-data-export)
+- [5. Reranker — rankLLaMA](#5-reranker--rankllama)
+  - [Ví dụ minh họa — Beauty dataset](#ví-dụ-minh-họa--beauty-dataset)
+  - [5.1 Cấu trúc thư mục output](#51-cấu-trúc-thư-mục-output)
+  - [5.2 Scripts](#52-scripts)
+  - [5.3 Tham số](#53-tham-số)
+  - [5.4 Workflow khuyến nghị](#54-workflow-khuyến-nghị)
+  - [5.5 Cấu hình training](#55-cấu-hình-training)
+  - [5.6 Ghi chú kỹ thuật](#56-ghi-chú-kỹ-thuật)
+- [6. RecBole — Training & Evaluation](#6-recbole--training--evaluation)
+- [7. So sánh kết quả](#7-so-sánh-kết-quả)
+- [8. Kết quả thực nghiệm](#8-kết-quả-thực-nghiệm)
+- [9. Tình trạng hiện tại](#9-tình-trạng-hiện-tại)
+- [Ý tưởng 3: Thứ tự items trong query](#ý-tưởng-3-thứ-tự-items-trong-query-chưa-implement)
+- [10. Ghi chú kỹ thuật](#10-ghi-chú-kỹ-thuật)
+
+---
+
 ## Ý tưởng
 
 Bài toán recommendation được reformulate thành bài toán **retrieval**:
@@ -22,43 +58,56 @@ repLLaMA/
 ├── dataset/                    # Pipeline tiền xử lý dữ liệu
 │   ├── preprocess.py           # 5-core filter, build sequences, leave-one-out split
 │   ├── export_tevatron.py      # Xuất định dạng Tevatron (repLLaMA)
-│   ├── export_recbole.py       # Xuất định dạng RecBole (SASRec)
+│   ├── export_recbole.py       # Xuất định dạng RecBole — data → dataset/recbole/, config → recbole/props/
+│   ├── compute_stats.py        # Thống kê title words, query token estimates
 │   ├── run_all.py              # Entry point chạy toàn bộ pipeline
 │   ├── raw/                    # Dữ liệu thô (tự tải về)
-│   ├── dataset/
-│   │   ├── tevatron/           # Output cho repLLaMA
-│   │   │   ├── <dataset>/      # Data gốc (1 sample/user)
-│   │   │   │   ├── corpus.jsonl
-│   │   │   │   ├── train.jsonl
-│   │   │   │   ├── valid.jsonl
-│   │   │   │   └── test.jsonl
-│   │   │   └── <dataset>-aug/  # Data augmented (N-3 samples/user)
-│   │   │       └── train.jsonl (augmented), valid/test/corpus (giống gốc)
-│   │   └── recbole/            # Output cho SASRec
-│   │       └── <dataset>/
-│   │           ├── <dataset>.inter
-│   │           ├── <dataset>.item
-│   │           └── sasrec_<dataset>.yaml
-│   └── README.md               # Mô tả chi tiết pipeline tiền xử lý
+│   └── dataset/
+│       ├── tevatron/           # Output cho repLLaMA
+│       │   └── <dataset[-tag]>/    # tag tự sinh: cs5, aug, mixed, cs5-aug-mixed, ...
+│       │       ├── corpus.jsonl
+│       │       ├── train.jsonl
+│       │       ├── valid.jsonl
+│       │       └── test.jsonl
+│       └── recbole/            # Data files cho RecBole (.inter, .item)
+│           └── <dataset>/
+│               ├── <dataset>.inter
+│               └── <dataset>.item
+│
+├── recbole/                    # RecBole workspace (như MiaSRec)
+│   ├── recbole/                # Thư viện RecBole (vendored — copy từ MiaSRec)
+│   ├── cmamba4rec.py           # Custom model (CMamba4Rec)
+│   ├── props/                  # YAML configs
+│   │   ├── beauty/
+│   │   │   ├── sasrec.yaml     # Auto-generated bởi export_recbole.py
+│   │   │   └── cmamba4rec.yaml # Config custom model
+│   │   ├── sports/
+│   │   │   ├── sasrec.yaml
+│   │   │   └── cmamba4rec.yaml
+│   │   └── ml-1m/
+│   │       ├── sasrec.yaml
+│   │       └── cmamba4rec.yaml
+│   └── output/                 # Kết quả training RecBole (tự sinh)
+│       ├── saved/              # Model checkpoints (.pth)
+│       ├── log/                # Training logs
+│       └── log_tensorboard/    # Tensorboard logs
 │
 ├── tevatron/                   # Thư viện Tevatron v2 (clone từ GitHub)
-├── tevatron-env/               # Virtual environment (chứa cả Tevatron và RecBole)
+├── tevatron-env/               # Virtual environment
 │
 ├── train.sh                    # Fine-tune repLLaMA
 ├── eval.sh                     # Đánh giá model: best / latest / base / checkpoint-N
-├── run_recbole.py              # Chạy bất kỳ model RecBole (SASRec, GRU4Rec, custom, ...)
+├── run_recbole.py              # Entry point RecBole (SASRec, GRU4Rec, custom model, ...)
 ├── show_results.py             # Tổng hợp và hiển thị bảng kết quả tất cả experiments
 │
 ├── ds_config.json              # DeepSpeed ZeRO-2 config
-└── output/                     # Kết quả training và embedding (tự sinh)
+└── output/                     # Kết quả training và embedding repLLaMA (tự sinh)
     └── <dataset>/
-        └── <model_tag[-variant]>/   # ví dụ: qwen3-embedding-0.6b, qwen3-embedding-0.6b-aug
-            ├── checkpoint-*/        # LoRA checkpoints (lưu mỗi save_steps)
-            ├── adapter_model.safetensors  # Final model (= checkpoint cuối)
-            └── embeddings/
-                ├── corpus/          # Dense vectors của corpus
-                ├── queries/         # Dense vectors của queries
-                └── results/         # Kết quả search và evaluation
+        └── <model_tag[-variant]>/
+            ├── train_config.json    # Config lưu bởi train.sh (dùng bởi show_results.py)
+            ├── checkpoint-*/        # LoRA checkpoints
+            ├── adapter_model.safetensors
+            └── embeddings/results/
 ```
 
 ---
@@ -604,7 +653,243 @@ cd ..
 
 ---
 
-## 5. RecBole — Training & Evaluation
+## 5. Reranker — rankLLaMA
+
+Reranker là **stage 2** của two-stage pipeline: sau khi repLLaMA retrieve top-K candidates, một cross-encoder rerank lại để cải thiện ranking quality.
+
+```
+Stage 1 — repLLaMA (bi-encoder)
+  query_embedding = repLLaMA(user_history)
+  top_K = FAISS.search(query_embedding, K=100)
+
+Stage 2 — rankLLaMA (cross-encoder)
+  score(i) = CrossEncoder([user_history; item_title_i])  for i in top_K
+  final_ranking = sort(top_K, by=score)
+```
+
+**Tại sao cross-encoder mạnh hơn bi-encoder ở reranking?**
+
+Bi-encoder encode query và item **độc lập** → similarity qua dot product. Cross-encoder encode `[query; item]` **chung một lần** → full attention giữa mọi token của cả hai → bắt được fine-grained matching signal mà bi-encoder không có.
+
+**Ceiling analysis (Beauty, qwen3-0.6b):**
+
+| Depth retriever | Recall@K | Tiềm năng HR@10 nếu rerank hoàn hảo |
+|---|---|---|
+| 100 (mặc định) | 0.2673 | **3.1×** (từ 0.0861) |
+
+---
+
+### Ví dụ minh họa — Beauty dataset
+
+Dưới đây là ví dụ thực từ Beauty test set, minh họa đầu vào/đầu ra của từng stage.
+
+#### Stage 1 — repLLaMA (Retriever)
+
+User đã mua 3 items gần nhất. Hệ thống cần dự đoán item tiếp theo.
+
+**Đầu vào — Query (text):**
+```
+Query: Pineapple Pumpkin Enzyme Skin Peel- Enhanced with Papaya Extract
+       & Alpha Hydroxy Acids (Professional Chemical Peel),
+       LAVANILA The Healthy Deodorant Vanilla Lavender 2.0 oz,
+       Waxelene 2oz jar </s>
+```
+
+repLLaMA encode query thành 1 dense vector, sau đó tìm kiếm FAISS trên toàn bộ corpus (12,101 items).
+
+**Đầu ra — Top-6 candidates (similarity score):**
+
+```
+Rank  Score   Item
+────  ──────  ────────────────────────────────────────────────────────────────
+ [1]  0.9365  Waxelene 2oz jar                                  ← item trong history!
+ [2]  0.9241  Pineapple Pumpkin Enzyme Skin Peel (...)           ← item trong history!
+ [3]  0.9076  Aztec Secrets: Indian Healing Bentonite Clay, 2 lbs
+ [4]  0.9075  Aztec Secrets: Indian Healing Bentonite Clay, 2 lbs  (duplicate)
+ [5]  0.9068  Salicylic Acid 20% Gel Peel - Enhanced with Tea Tree Oil (...)  ★ POSITIVE
+ [6]  0.9043  TCA 15% Gel Peel - Salicylic Acid 5% Enhanced with Botanical Extracts (...)
+```
+
+> **Vấn đề của bi-encoder:** Retriever xếp hạng cao các item **đã có trong history** của user (rank 1, 2) vì embedding của chúng tương tự query. Nó không phân biệt được "items user đã mua" vs "items user muốn mua tiếp". Item đúng (★) bị đẩy xuống rank 5.
+
+---
+
+#### Stage 2 — rankLLaMA (Reranker)
+
+Với mỗi candidate trong top-K, reranker nhận một cặp **(query, candidate)** ghép lại và tính relevance score.
+
+**Đầu vào — Cặp (query; candidate) cho từng item:**
+
+```
+# Candidate rank [1] — Waxelene 2oz jar
+Query: Pineapple Pumpkin Enzyme Skin Peel (...), LAVANILA (...), Waxelene 2oz jar </s>
+Passage: Waxelene 2oz jar
+→ score = ?   [cross-encoder xử lý cả 2 cùng lúc, full attention]
+
+# Candidate rank [5] — Salicylic Acid Chemical Peel (POSITIVE)
+Query: Pineapple Pumpkin Enzyme Skin Peel (...), LAVANILA (...), Waxelene 2oz jar </s>
+Passage: Salicylic Acid 20% Gel Peel - Enhanced with Tea Tree Oil & Green Tea Extract
+→ score = ?
+```
+
+Tokenized input thực tế (sau khi ghép, truncate 256 tokens, append EOS):
+```
+[token_1][token_2]...[query_tokens]...[</s>][passage_tokens]...[<|im_end|>]
+                                                                ↑ EOS — classification head dùng hidden state ở đây
+```
+
+**Đầu ra — Reranked list (kỳ vọng sau reranking):**
+
+```
+Rank  Score    Item
+────  ───────  ────────────────────────────────────────────────────────────────
+ [1]  (cao)    Salicylic Acid 20% Gel Peel - Enhanced with Tea Tree Oil (...)  ★ POSITIVE
+ [2]  (cao)    TCA 15% Gel Peel - Salicylic Acid 5% Enhanced with Botanical Extracts
+ [3]  (thấp)   Aztec Secrets: Indian Healing Bentonite Clay, 2 lbs
+ [4]  (thấp)   Aztec Secrets: Indian Healing Bentonite Clay, 2 lbs
+ [5]  (thấp)   Pineapple Pumpkin Enzyme Skin Peel (...)           ← item trong history → downrank
+ [6]  (thấp)   Waxelene 2oz jar                                   ← item trong history → downrank
+```
+
+> **Lợi thế của cross-encoder:** Full attention cho phép model nhận biết rằng Waxelene và Pineapple Peel **đã xuất hiện trong query** (lịch sử của user) → downrank. Đồng thời nhận ra Salicylic Acid Chemical Peel là *loại sản phẩm tiếp theo hợp lý* dựa trên context mua sắm → uprank lên vị trí 1.
+
+---
+
+### 5.1 Cấu trúc thư mục output
+
+```
+output/<dataset>/<model_tag>-reranker/
+├── train_data/
+│   ├── train_queries.pkl        # Encoded train queries (cache, reuse được)
+│   ├── train_rank.txt           # FAISS search output thô
+│   ├── train_rank.trec          # Converted TREC format (deduplicated)
+│   └── reranker_train.jsonl     # Training data: query + pos + hard negs
+├── checkpoint-500/              # Reranker LoRA checkpoints
+├── adapter_model.safetensors    # Final reranker model (= checkpoint cuối)
+└── inference/
+    ├── test_pairs.jsonl         # Flat (query, candidate) pairs để chạy reranker
+    ├── test_reranked.txt        # Reranker output thô: qid\tdocid\tscore
+    ├── test_reranked.trec       # TREC format (có rank)
+    └── eval_test_reranked.txt   # Metrics + bảng so sánh Retriever vs Reranker
+```
+
+---
+
+### 5.2 Scripts
+
+| Script | Vai trò |
+|---|---|
+| `prepare_rerank_data.py` | Chuyển đổi dữ liệu từ retriever output sang format reranker |
+| `train_reranker.sh` | Train cross-encoder reranker (5 bước, idempotent) |
+| `rerank.sh` | Rerank top-K + evaluate + in bảng so sánh |
+
+**`prepare_rerank_data.py`** — hai mode:
+
+| Mode | Input | Output |
+|---|---|---|
+| `train` | `train.jsonl` + `train_rank.trec` + `corpus.jsonl` | `reranker_train.jsonl` (query + pos + hard negs) |
+| `infer` | `test.jsonl` + `test_rank.trec` + `corpus.jsonl` | flat pairs jsonl (1 dòng / (query, candidate)) |
+
+---
+
+### 5.3 Tham số
+
+**`train_reranker.sh`:**
+
+```
+./train_reranker.sh <dataset> [--model MODEL] [--tag RTAG]
+                               [--depth N] [--group-size N] [--epochs N]
+```
+
+| Tham số | Mặc định | Ghi chú |
+|---|---|---|
+| `--model` | `Qwen/Qwen3-Embedding-0.6B` | Base model (khuyến nghị dùng cùng với retriever) |
+| `--tag RTAG` | `""` | Tag retriever đã train (ví dụ: `aug-5`); để trống = standard model |
+| `--depth N` | `100` | Số candidates/query để mine hard negatives |
+| `--group-size N` | `8` | 1 pos + (N-1) hard negs mỗi query khi train |
+| `--epochs N` | `3` | Số training epochs |
+
+**`rerank.sh`:**
+
+```
+./rerank.sh <dataset> [--model MODEL] [--tag RTAG] [--split SPLIT]
+            [--retriever-trec FILE] [--reranker-ckpt DIR]
+```
+
+| Tham số | Mặc định | Ghi chú |
+|---|---|---|
+| `--tag RTAG` | `""` | Phải khớp với `--tag` khi chạy `train_reranker.sh` |
+| `--split` | `test` | `valid` hoặc `test` |
+| `--retriever-trec FILE` | auto | Override trec file (mặc định tự tìm từ `eval_<split>_best.txt`) |
+| `--reranker-ckpt DIR` | final model | Override checkpoint cụ thể (ví dụ: debug checkpoint-500) |
+
+---
+
+### 5.4 Workflow khuyến nghị
+
+```bash
+source tevatron-env/bin/activate
+
+# Điều kiện tiên quyết: retriever đã train và eval xong
+./train.sh beauty
+./eval.sh beauty
+
+# Bước 1: Train reranker (~30-40 phút)
+./train_reranker.sh beauty
+
+# Bước 2: Rerank + evaluate
+./rerank.sh beauty
+```
+
+Có thể chạy lại `train_reranker.sh` an toàn sau khi fix lỗi — các bước đã hoàn thành (corpus cache, train query embeddings, train_rank.trec) sẽ bị skip tự động.
+
+---
+
+### 5.5 Cấu hình training
+
+| Tham số | Giá trị | Ghi chú |
+|---|---|---|
+| Kiến trúc | `AutoModelForSequenceClassification` | Cross-encoder, output 1 score/pair |
+| LoRA rank / alpha | 16 / 64 | Giống retriever |
+| LoRA target | q,k,v,o,down,up,gate | Toàn bộ attention + FFN |
+| `per_device_train_batch_size` | 2 | Số queries per GPU per step |
+| `gradient_accumulation_steps` | 16 | Effective batch = 32 queries/step |
+| `train_group_size` | 8 | 1 pos + 7 hard negs mỗi query |
+| Input max length | 256 tokens | `[query_history; item_title]` ghép lại |
+| Learning rate | 1e-4 | |
+| Warmup steps | 100 | |
+| Save steps | 500 | |
+| `--append_eos_token` | bật | Thêm EOS cuối chuỗi làm anchor cho classification head |
+| `num_labels` | 1 | Single regression score — **bắt buộc** để loss tính đúng |
+
+**Auto-adjust batch size theo model:**
+
+| Model | `per_device_batch` | `grad_accum` |
+|---|---|---|
+| Qwen3-0.6B *(mặc định)* | 2 | 16 |
+| Qwen3-4B, Qwen2.5-3B, Llama-3.2-* | 1 | 32 |
+
+---
+
+### 5.6 Ghi chú kỹ thuật
+
+**Hard negatives từ retriever:** Training data của reranker dùng top-K retrieved items (trừ positive) làm hard negatives. Đây là những items retriever nghĩ là relevant nhưng không phải ground truth — reranker phải học phân biệt fine-grained, khó hơn random negatives nhiều.
+
+**`num_labels=1` trong `build()`:** Tevatron's `RerankerModel.build()` gốc không pass `num_labels`, gây `AutoModelForSequenceClassification` mặc định 2 nhãn → reshape sai (`[batch, group×2]` thay vì `[batch, group]`) → loss sai. Đã fix tại `tevatron/src/tevatron/reranker/driver/train.py`.
+
+**Padding side:** Retriever dùng **left padding** (causal LLM + last-token pooling trên query/passage riêng lẻ). Reranker dùng **right padding** (sequence classification — HF tự tìm last non-padding token để classify).
+
+**Corpus cache:** `train_reranker.sh` tự tìm và reuse corpus embedding `.pkl` đã được `eval.sh` tạo ra — không encode lại corpus (~12K items Beauty).
+
+**Transformers 5.x compatibility fixes** áp dụng cho reranker:
+- `transformers.deepspeed` → `transformers.integrations.deepspeed` (với fallback `False`)
+- `compute_loss()` thêm `num_items_in_batch=None, **kwargs` để tương thích API mới
+- `--overwrite_output_dir` bị xóa → bỏ flag này
+- `--warmup_ratio` deprecated → dùng `--warmup_steps`
+
+---
+
+## 6. RecBole — Training & Evaluation
 
 Dùng script `run_recbole.py` từ thư mục root của project:
 
@@ -623,25 +908,27 @@ python run_recbole.py SASRec beauty epochs=50 learning_rate=0.0005
 python run_recbole.py GRU4Rec beauty
 python run_recbole.py BERT4Rec beauty
 
-# Chạy model custom (đặt file trong recbole/, kế thừa SequentialRecommender)
-python run_recbole.py recbole.my_model.MyModel beauty
+# Chạy model custom (đặt file trong recbole/, truyền tên module.ClassName)
+python run_recbole.py cmamba4rec.CMamba4Rec beauty
 
 # Eval only — load checkpoint đã lưu, không train lại
-python run_recbole.py eval recbole_output/saved/SASRec-May-12-2026_09-28-11.pth
+python run_recbole.py eval recbole/output/saved/SASRec-May-12-2026_09-28-11.pth
 ```
 
 Output lưu tại:
-- `recbole_output/saved/` — model checkpoints (`.pth`)
-- `recbole_output/log/` — training logs
+- `recbole/output/saved/` — model checkpoints (`.pth`)
+- `recbole/output/log/` — training logs
+- `recbole/output/log_tensorboard/` — tensorboard logs
 
 Script tự động:
-- Load file `dataset/dataset/recbole/<dataset>/sasrec_<dataset>.yaml` nếu tồn tại (ưu tiên), fallback về config mặc định RecBole
+- Thêm `recbole/` vào `sys.path` để tìm thư viện (`recbole/recbole/`) và custom models
+- Load YAML config từ `recbole/props/<dataset>/` nếu tồn tại, fallback về config mặc định RecBole
 - Set đúng `data_path` (tránh lỗi path khi chạy từ project root)
 - Patch numpy 2.0 compatibility trước khi import RecBole
 
 ### Model custom
 
-Đặt file `.py` trong thư mục `recbole/` (đã có `__init__.py`), kế thừa class RecBole:
+Đặt file `.py` trong thư mục `recbole/`, kế thừa class RecBole:
 
 ```python
 # recbole/my_model.py
@@ -654,7 +941,7 @@ class MyModel(SASRec):
 ```
 
 ```bash
-python run_recbole.py recbole.my_model.MyModel beauty epochs=100
+python run_recbole.py my_model.MyModel beauty epochs=100
 ```
 
 ### Ghi chú kỹ thuật
@@ -670,7 +957,7 @@ python run_recbole.py recbole.my_model.MyModel beauty epochs=100
 
 ---
 
-## 6. So sánh kết quả
+## 7. So sánh kết quả
 
 Cả hai model đều dùng:
 - Cùng bộ dữ liệu sau 5-core filter
@@ -689,7 +976,7 @@ Cả hai model đều dùng:
 
 ---
 
-## 7. Kết quả thực nghiệm
+## 8. Kết quả thực nghiệm
 
 Xem chi tiết tại **[experiments.md](experiments.md)** — bao gồm bảng kết quả tổng hợp và mô tả từng thực nghiệm.
 
@@ -704,7 +991,7 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 
 ---
 
-## 8. Tình trạng hiện tại
+## 9. Tình trạng hiện tại
 
 ### Đã hoàn thành
 - [x] Pipeline tiền xử lý dữ liệu (`dataset/`)
@@ -777,7 +1064,7 @@ Export ra thư mục riêng (ví dụ `beauty-reversed/`, `beauty-random/`) → 
 
 ---
 
-## 9. Ghi chú kỹ thuật
+## 10. Ghi chú kỹ thuật
 
 ### Thư mục gốc `output/` chứa model gì?
 
