@@ -15,11 +15,13 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| [GRU4Rec †](#exp-paper-baselines) | 0.0099 | 0.0164 | 0.0137 | 0.0283 | — | — | — |
-| [BERT4Rec †](#exp-paper-baselines) | 0.0124 | 0.0203 | 0.0170 | 0.0347 | — | — | — |
-| [SASRec †](#exp-paper-baselines) | 0.0249 | 0.0387 | 0.0318 | 0.0605 | — | — | — |
-| [TIGER †](#exp-paper-baselines) | 0.0321 | 0.0454 | 0.0384 | 0.0648 | — | — | — |
 | [Qwen3-Embedding-0.6B · bm25](#exp-beauty-qwen3-embedding-0.6b-bm25) | 0.0166 | 0.0255 | 0.0209 | 0.0388 | 0.0269 | 0.0626 | 0.0154 |
+| [Qwen3-Embedding-0.6B · cs10-gs32](#exp-beauty-qwen3-embedding-0.6b-cs10-gs32) | 0.0233 | 0.0453 | 0.0356 | 0.0835 | 0.0469 | 0.1287 | 0.0211 |
+| [Qwen3-Embedding-0.6B · cs5-gs50-ep5](#exp-beauty-qwen3-embedding-0.6b-cs5-gs50-ep5) | 0.0225 | 0.0439 | 0.0346 | 0.0813 | 0.0463 | 0.1279 | 0.0205 |
+| [Qwen3-Embedding-0.6B · ep10-gs50](#exp-beauty-qwen3-embedding-0.6b-ep10-gs50) | 0.0234 | 0.0445 | 0.0350 | 0.0807 | 0.0466 | 0.1268 | 0.0212 |
+| [Qwen3-Embedding-0.6B · gs16](#exp-beauty-qwen3-embedding-0.6b-gs16) | 0.0226 | 0.0434 | 0.0344 | 0.0803 | 0.0456 | 0.1244 | 0.0206 |
+| [Qwen3-Embedding-0.6B · gs32](#exp-beauty-qwen3-embedding-0.6b-gs32) | 0.0234 | 0.0450 | 0.0360 | 0.0840 | 0.0473 | 0.1288 | 0.0215 |
+| [Qwen3-Embedding-0.6B · gs8](#exp-beauty-qwen3-embedding-0.6b-gs8) | 0.0217 | 0.0426 | 0.0329 | 0.0775 | 0.0434 | 0.1189 | 0.0195 |
 | [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
 | [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
 | [qwen3-1.7b · zero-shot](#exp-beauty-qwen3-1.7b-zeroshot) | 0.0005 | 0.0007 | 0.0005 | 0.0009 | 0.0006 | 0.0013 | 0.0004 |
@@ -33,10 +35,6 @@
 
 | Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| [GRU4Rec †](#exp-paper-baselines) | 0.0086 | 0.0129 | 0.0110 | 0.0204 | — | — | — |
-| [BERT4Rec †](#exp-paper-baselines) | 0.0075 | 0.0115 | 0.0099 | 0.0191 | — | — | — |
-| [SASRec †](#exp-paper-baselines) | 0.0154 | 0.0233 | 0.0192 | 0.0350 | — | — | — |
-| [TIGER †](#exp-paper-baselines) | 0.0181 | 0.0264 | 0.0225 | 0.0400 | — | — | — |
 | [llama-3.2-1b · zero-shot](#exp-sports-llama-3.2-1b-zeroshot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
 | [qwen3-embedding-0.6b · zero-shot](#exp-sports-qwen3-embedding-0.6b-zeroshot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
 
@@ -82,6 +80,218 @@
 ```bash
 ./train.sh beauty --data-variant bm25
 ./eval.sh beauty --tag bm25
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-cs10-gs32"></a>
+#### Qwen3-Embedding-0.6B · cs10-gs32
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | cs10 |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 256 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2000 |
+| Selection metric | ndcg_10 (valid) = 0.0392 |
+| Trained at | 2026-05-21T13:26:15+07:00 |
+
+```bash
+./train.sh beauty --data-variant cs10 --tag cs10-gs32 --group-size 32
+./eval.sh beauty --tag cs10-gs32
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-cs5-gs32"></a>
+#### Qwen3-Embedding-0.6B · cs5-gs32
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | cs5 |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Trained at | 2026-05-20T16:50:39+07:00 |
+
+```bash
+./train.sh beauty --data-variant cs5 --tag cs5-gs32 --group-size 32
+./eval.sh beauty --tag cs5-gs32
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-cs5-gs50-ep5"></a>
+#### Qwen3-Embedding-0.6B · cs5-gs50-ep5
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | cs5 |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 5 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2000 |
+| Selection metric | ndcg_10 (valid) = 0.0381 |
+| Trained at | 2026-05-21T07:33:16+07:00 |
+
+```bash
+./train.sh beauty --data-variant cs5 --tag cs5-gs50-ep5 --group-size 32
+./eval.sh beauty --tag cs5-gs50-ep5
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-ep10-gs50"></a>
+#### Qwen3-Embedding-0.6B · ep10-gs50
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | — |
+| train_group_size | 50 (1 positive + 49 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 10 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2000 |
+| Selection metric | ndcg_10 (valid) = 0.0383 |
+| Trained at | 2026-05-19T11:06:32+07:00 |
+
+```bash
+./train.sh beauty --tag ep10-gs50 --group-size 50
+./eval.sh beauty --tag ep10-gs50
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-gs16"></a>
+#### Qwen3-Embedding-0.6B · gs16
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | — |
+| train_group_size | 8 (1 positive + 7 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2097 |
+| Selection metric | ndcg_10 (valid) = 0.0379 |
+| Trained at | 2026-05-19T08:27:26+07:00 |
+
+```bash
+./train.sh beauty --tag gs16
+./eval.sh beauty --tag gs16
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-gs32"></a>
+#### Qwen3-Embedding-0.6B · gs32
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | — |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2097 |
+| Selection metric | ndcg_10 (valid) = 0.0396 |
+| Trained at | 2026-05-18T15:13:04+00:00 |
+
+```bash
+./train.sh beauty --tag gs32 --group-size 32
+./eval.sh beauty --tag gs32
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-gs50-ep5"></a>
+#### Qwen3-Embedding-0.6B · gs50-ep5
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | — |
+| train_group_size | 50 (1 positive + 49 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 5 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Trained at | 2026-05-19T09:43:19+07:00 |
+
+```bash
+./train.sh beauty --tag gs50-ep5 --group-size 50
+./eval.sh beauty --tag gs50-ep5
+```
+
+---
+
+<a id="exp-beauty-qwen3-embedding-0.6b-gs8"></a>
+#### Qwen3-Embedding-0.6B · gs8
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | beauty |
+| Data variant | — |
+| train_group_size | 8 (1 positive + 7 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2097 |
+| Selection metric | ndcg_10 (valid) = 0.0354 |
+| Trained at | 2026-05-19T01:48:51+00:00 |
+
+```bash
+./train.sh beauty --tag gs8
+./eval.sh beauty --tag gs8
 ```
 
 ---
