@@ -31,6 +31,14 @@
   - [5.4 Workflow khuyến nghị](#54-workflow-khuyến-nghị)
   - [5.5 Cấu hình training](#55-cấu-hình-training)
   - [5.6 Ghi chú kỹ thuật](#56-ghi-chú-kỹ-thuật)
+- [5.7 Qwen3-Reranker — Generative Reranker](#57-qwen3-reranker--generative-reranker)
+  - [5.7.1 Cơ chế hoạt động](#571-cơ-chế-hoạt-động)
+  - [5.7.2 Scripts](#572-scripts)
+  - [5.7.3 Workflow zero-shot](#573-workflow-zero-shot)
+  - [5.7.4 Workflow fine-tune](#574-workflow-fine-tune)
+  - [5.7.5 Tham số](#575-tham-số)
+  - [5.7.6 Cấu hình training](#576-cấu-hình-training)
+  - [5.7.7 Cấu trúc thư mục output](#577-cấu-trúc-thư-mục-output)
 - [6. RecBole — Training & Evaluation](#6-recbole--training--evaluation)
 - [7. So sánh kết quả](#7-so-sánh-kết-quả)
 - [8. Kết quả thực nghiệm](#8-kết-quả-thực-nghiệm)
@@ -95,8 +103,18 @@ repLLaMA/
 ├── tevatron/                   # Thư viện Tevatron v2 (clone từ GitHub)
 ├── tevatron-env/               # Virtual environment
 │
-├── train.sh                    # Fine-tune repLLaMA
-├── eval.sh                     # Đánh giá model: best / latest / base / checkpoint-N
+├── train.sh                    # Fine-tune repLLaMA (retriever)
+├── eval.sh                     # Đánh giá retriever: best / latest / base / checkpoint-N
+│
+├── train_reranker.sh           # Train rankLLaMA cross-encoder reranker (5 bước, idempotent)
+├── rerank.sh                   # Rerank top-K + evaluate với rankLLaMA
+├── prepare_rerank_data.py      # Chuyển đổi dữ liệu retriever → format reranker (train/infer)
+│
+├── train_reranker_qwen3.sh     # Fine-tune Qwen3-Reranker với InfoNCE loss (5 bước, idempotent)
+├── train_reranker_qwen3.py     # Python training script cho Qwen3-Reranker
+├── rerank_qwen3.sh             # Rerank top-K + evaluate với Qwen3-Reranker (zero-shot / fine-tuned)
+├── rerank_qwen3.py             # Python inference script cho Qwen3-Reranker
+│
 ├── run_recbole.py              # Entry point RecBole (SASRec, GRU4Rec, custom model, ...)
 ├── show_results.py             # Tổng hợp và hiển thị bảng kết quả tất cả experiments
 │
@@ -889,6 +907,211 @@ Có thể chạy lại `train_reranker.sh` an toàn sau khi fix lỗi — các b
 
 ---
 
+## 5.7 Qwen3-Reranker — Generative Reranker
+
+Phương án thay thế rankLLaMA: dùng **Qwen3-Reranker** — một generative reranker score relevance qua xác suất token `"yes"` thay vì classification head.
+
+**So sánh kiến trúc với rankLLaMA:**
+
+| | rankLLaMA | Qwen3-Reranker |
+|---|---|---|
+| Kiến trúc | `AutoModelForSequenceClassification` + linear head mới (random init) | `AutoModelForCausalLM` + LM head có sẵn |
+| Scoring | 1 scalar regression từ EOS hidden state | P("yes") = softmax([logit_no, logit_yes])[1] |
+| Zero-shot | Không khả thi (cần fine-tune) | Có (mạnh ngay khi không train) |
+| Task instruction | Không có | Recommendation-specific |
+| Loss khi fine-tune | Cross-entropy sequence classification | InfoNCE trên yes-logits |
+
+---
+
+### 5.7.1 Cơ chế hoạt động
+
+Qwen3-Reranker là causal LM. Với mỗi cặp (query, candidate):
+
+1. Xây dựng prompt kết thúc bằng suffix `<|im_start|>assistant\n<think>\n\n</think>\n\n`
+2. Một lần **forward pass duy nhất** (không generate text)
+3. Lấy logit tại vị trí cuối cho token `"yes"` và `"no"` (2 trong 152K logits)
+4. `score = softmax([logit_no, logit_yes])[1]` = P("yes" | context)
+
+```
+logits = model(prompt).logits[:, -1, :]         # [batch, vocab_size]
+                                ↑ vị trí cuối — model "chuẩn bị generate" token tiếp theo
+score = softmax([logits[:, no_id], logits[:, yes_id]])[1]
+```
+
+**Task instruction (recommendation-specific):**
+
+```
+A user recently purchased the items listed in the Query (in chronological order).
+Determine whether the Document is the item the user purchased immediately after.
+The correct next item should be a new product not already in the purchase history
+that fits the user's demonstrated preferences and shopping pattern.
+```
+
+**Input format mỗi pair:**
+
+```
+<|im_start|>system
+Judge whether the Document meets the requirements based on the Query and the Instruct provided.
+Note that the answer can only be "yes" or "no".<|im_end|>
+<|im_start|>user
+<Instruct>: [task instruction trên]
+<Query>: item1, item2, item3          ← lịch sử mua (đã bỏ "Query: " prefix và " </s>" suffix)
+<Document>: candidate item title
+<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+                                      ← logit "yes"/"no" lấy tại đây
+```
+
+---
+
+### 5.7.2 Scripts
+
+| Script | Vai trò |
+|---|---|
+| `rerank_qwen3.py` | Inference: score từng (query, candidate) pair → `qid\tdocid\tscore` |
+| `rerank_qwen3.sh` | Pipeline đầy đủ: chuẩn bị pairs + rerank + evaluate + bảng so sánh |
+| `train_reranker_qwen3.py` | Fine-tune Qwen3-Reranker với InfoNCE loss trên yes-logits |
+| `train_reranker_qwen3.sh` | Pipeline 5 bước: data prep (reuse nếu có) + fine-tune (idempotent) |
+
+**`rerank_qwen3.py`** hỗ trợ hai mode qua flag `--lora-path`:
+
+| Mode | Flag | Mô tả |
+|---|---|---|
+| Zero-shot | (không truyền `--lora-path`) | Qwen3-Reranker không fine-tune |
+| Fine-tuned | `--lora-path DIR` | Load LoRA weights từ `train_reranker_qwen3.sh`, merge trước khi inference |
+
+---
+
+### 5.7.3 Workflow zero-shot
+
+```bash
+source tevatron-env/bin/activate
+
+# Điều kiện: eval.sh đã chạy để có retriever trec file
+
+# Standard retriever
+./rerank_qwen3.sh beauty
+
+# Retriever với tag aug-5 (best hiện tại)
+./rerank_qwen3.sh beauty --retriever-tag aug-5
+```
+
+Output: `output/beauty/<retriever_tag>-qwen3-reranker-0.6b/inference/eval_test_reranked.txt`
+
+---
+
+### 5.7.4 Workflow fine-tune
+
+```bash
+source tevatron-env/bin/activate
+
+# Bước 1: Fine-tune Qwen3-Reranker (~30-60 phút)
+./train_reranker_qwen3.sh beauty
+./train_reranker_qwen3.sh beauty --retriever-tag aug-5   # nếu dùng retriever aug-5
+
+# Bước 2: Rerank + evaluate với LoRA đã fine-tune
+./rerank_qwen3.sh beauty \
+    --lora-path output/beauty/qwen3-embedding-0.6b-qwen3-reranker-0.6b
+
+./rerank_qwen3.sh beauty --retriever-tag aug-5 \
+    --lora-path output/beauty/qwen3-embedding-0.6b-aug-5-qwen3-reranker-0.6b
+```
+
+> `train_reranker_qwen3.sh` tự động reuse `reranker_train.jsonl` từ `train_reranker.sh` (bước 1-4) nếu đã có — không cần chạy lại data prep.
+
+---
+
+### 5.7.5 Tham số
+
+**`train_reranker_qwen3.sh`:**
+
+```
+./train_reranker_qwen3.sh <dataset> [--retriever-model MODEL] [--retriever-tag TAG]
+                                     [--reranker-model MODEL]
+                                     [--depth N] [--group-size N] [--epochs N] [--lr LR]
+```
+
+| Tham số | Mặc định | Ghi chú |
+|---|---|---|
+| `--retriever-model` | `Qwen/Qwen3-Embedding-0.6B` | Retriever base model |
+| `--retriever-tag TAG` | `""` | Tag retriever đã train |
+| `--reranker-model` | `Qwen/Qwen3-Reranker-0.6B` | Qwen3-Reranker model ID |
+| `--depth N` | `100` | Số candidates/query để mine hard negatives |
+| `--group-size N` | `8` | 1 pos + (N-1) hard negs mỗi query |
+| `--epochs N` | `3` | Số training epochs |
+| `--lr LR` | `1e-4` | Learning rate |
+
+**`rerank_qwen3.sh`:**
+
+```
+./rerank_qwen3.sh <dataset> [--retriever-model MODEL] [--retriever-tag TAG]
+                             [--reranker-model MODEL] [--lora-path DIR]
+                             [--split SPLIT] [--batch-size N] [--force]
+```
+
+| Tham số | Mặc định | Ghi chú |
+|---|---|---|
+| `--retriever-model` | `Qwen/Qwen3-Embedding-0.6B` | Retriever model (để tìm trec file) |
+| `--retriever-tag TAG` | `""` | Tag retriever |
+| `--reranker-model` | `Qwen/Qwen3-Reranker-0.6B` | Qwen3-Reranker model |
+| `--lora-path DIR` | `""` | LoRA weights (để trống = zero-shot) |
+| `--split` | `test` | `valid` hoặc `test` |
+| `--batch-size N` | `8` | Batch size inference (giữ nhỏ tránh OOM do logits vocab lớn) |
+
+---
+
+### 5.7.6 Cấu hình training
+
+| Tham số | Giá trị | Ghi chú |
+|---|---|---|
+| Base model | `Qwen/Qwen3-Reranker-0.6B` | Generative reranker, ~1.2 GB BF16 |
+| Loss | InfoNCE trên yes-logits | `cross_entropy(yes_logits.view(B, G), labels=0)` — maximize yes-logit của positive so với negatives |
+| LoRA rank / alpha | 16 / 64 | Giống retriever |
+| LoRA target | q,k,v,o,down,up,gate | Toàn bộ attention + FFN |
+| `per_device_train_batch_size` | 1 | 1 query per GPU step |
+| `gradient_accumulation_steps` | 32 | Effective batch = 32 queries/step |
+| `train_group_size` | 8 | 1 pos + 7 hard negs mỗi query |
+| Input max length | 256 tokens | Đủ cho prefix + 3-item query + doc title + suffix |
+| Learning rate | 1e-4 | |
+| Warmup steps | 100 | |
+| Save steps | 500 | |
+| Gradient checkpointing | bật | Tiết kiệm VRAM — recompute activations khi backward |
+
+**Lưu ý VRAM:** Với Qwen3-Reranker-0.6B, bottleneck là logits tensor `[group_size, seq_len, vocab_size]`. Giữ `group_size ≤ 8` và `max_length ≤ 256` để không OOM trên RTX 3060 12 GB.
+
+---
+
+### 5.7.7 Cấu trúc thư mục output
+
+```
+# Fine-tuned LoRA weights
+output/<dataset>/<retriever_tag>-qwen3-reranker-0.6b/
+├── checkpoint-500/
+│   └── adapter_model.safetensors
+├── checkpoint-1000/
+│   └── adapter_model.safetensors
+└── adapter_model.safetensors          # Final model (sau epoch cuối)
+
+# Inference results — zero-shot
+output/<dataset>/<retriever_tag>-qwen3-reranker-0.6b/inference/
+├── test_pairs.jsonl                   # Flat (query, candidate) pairs
+├── test_reranked.txt                  # Raw scores: qid\tdocid\tscore
+├── test_reranked.trec                 # TREC format (dùng để eval)
+└── eval_test_reranked.txt             # Metrics + bảng so sánh Retriever vs Qwen3-Reranker
+
+# Inference results — fine-tuned (suffix "-ft" phân biệt với zero-shot)
+output/<dataset>/<retriever_tag>-qwen3-reranker-0.6b-ft/inference/
+└── eval_test_reranked.txt
+```
+
+**Sharing training data:** `train_reranker_qwen3.sh` lưu training data tại `<retriever_tag>-reranker/train_data/` — **cùng thư mục** với `train_reranker.sh`. Nếu đã chạy `train_reranker.sh`, bước 1-4 (corpus embedding, query embedding, FAISS search, data prep) được bỏ qua hoàn toàn.
+
+---
+
 ## 6. RecBole — Training & Evaluation
 
 Dùng script `run_recbole.py` từ thư mục root của project:
@@ -1013,9 +1236,14 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 - [x] `run_recbole.py` — chạy bất kỳ model RecBole, hỗ trợ model custom qua `module.ClassName`
 - [x] Fix numpy 2.0 compatibility cho RecBole (`bool8`, `float_`, `unicode_`, ...)
 - [x] Fix yaml RecBole: `train_neg_sample_args: ~`, `TIME_FIELD`, `load_col`, `order: TO`
+- [x] `train_reranker.sh` + `rerank.sh` — rankLLaMA cross-encoder reranker (Tevatron pipeline)
+- [x] `train_reranker_qwen3.sh` + `train_reranker_qwen3.py` — fine-tune Qwen3-Reranker với InfoNCE loss trên yes-logits
+- [x] `rerank_qwen3.sh` + `rerank_qwen3.py` — Qwen3-Reranker reranking (zero-shot và fine-tuned)
+- [x] Recommendation-specific task instruction cho Qwen3-Reranker
 
 ### Cần làm
 - [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
+- [ ] Đánh giá Qwen3-Reranker fine-tuned và so sánh với rankLLaMA
 
 ### Cải tiến tiềm năng
 - [ ] Hard negative mining (BM25 hoặc từ top retrieved items) để cải thiện chất lượng training
