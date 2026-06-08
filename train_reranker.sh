@@ -12,6 +12,7 @@
 #   --depth N      : số candidates/query để mine hard negatives (mặc định: 100)
 #   --group-size N : 1 pos + (N-1) hard neg mỗi query khi train (mặc định: 8)
 #   --epochs N     : số training epochs (mặc định: 3)
+#   --lr LR        : learning rate (mặc định: 5e-5)
 #
 # Pipeline:
 #   1. Reuse corpus embedding từ eval.sh (hoặc encode nếu chưa có)
@@ -46,6 +47,7 @@ retriever_tag=""
 depth=100
 group_size=8
 epochs=3
+lr="5e-5"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -54,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --depth)      depth="$2";         shift 2 ;;
     --group-size) group_size="$2";    shift 2 ;;
     --epochs)     epochs="$2";        shift 2 ;;
+    --lr)         lr="$2";            shift 2 ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; exit 1 ;;
   esac
 done
@@ -111,22 +114,50 @@ echo "  Reranker out : ${RERANKER_DIR}"
 echo "  Depth        : ${depth} candidates/query"
 echo "  Group size   : ${group_size} (1 pos + $((group_size - 1)) hard negs)"
 echo "  Epochs       : ${epochs}"
+echo "  Learning rate: ${lr}"
 echo "  Batch        : ${per_batch} queries × ${group_size} passages × accum ${grad_accum}"
 echo "════════════════════════════════════════════════"
 echo ""
 
+# ── Xác định best checkpoint để dùng nhất quán cho cả corpus lẫn query ───────
+#
+# Reranker cần mine hard negatives từ CÙNG model sẽ dùng lúc inference
+# (best checkpoint, không phải last checkpoint hay checkpoint ngẫu nhiên).
+# Đọc từ eval_test_best.txt do eval.sh tạo ra.
+
+BEST_LABEL=""
+BEST_TXT="${RETRIEVER_DIR}/embeddings/results/eval_test_best.txt"
+if [ -f "${BEST_TXT}" ]; then
+  BEST_LABEL=$(grep "^Best checkpoint" "${BEST_TXT}" | awk '{print $NF}')
+fi
+
+if [ -n "${BEST_LABEL}" ] && [ -d "${RETRIEVER_DIR}/${BEST_LABEL}" ]; then
+  BEST_LORA_PATH="${RETRIEVER_DIR}/${BEST_LABEL}"
+  echo "Best checkpoint   : ${BEST_LABEL} (lora: ${BEST_LORA_PATH})"
+else
+  BEST_LORA_PATH="${RETRIEVER_DIR}"
+  echo "Best checkpoint   : không tìm thấy → dùng final model (${RETRIEVER_DIR})"
+  [ -z "${BEST_LABEL}" ] && BEST_LABEL="final"
+fi
+echo ""
+
 # ── Step 1: Corpus embedding — reuse từ eval.sh nếu có ───────────────────────
+#
+# Ưu tiên pkl của best checkpoint (embeddings/corpus/<best_label>.pkl).
+# Nếu không có → fallback encode mới bằng best_lora_path.
 
-CORPUS_EMB=$(ls "${RETRIEVER_DIR}/embeddings/corpus/"*.pkl 2>/dev/null | head -1)
-
-if [ -z "${CORPUS_EMB}" ]; then
-  CORPUS_EMB="${RETRIEVER_DIR}/embeddings/corpus/corpus.pkl"
+BEST_CORPUS_PKL="${RETRIEVER_DIR}/embeddings/corpus/${BEST_LABEL}.pkl"
+if [ -f "${BEST_CORPUS_PKL}" ]; then
+  CORPUS_EMB="${BEST_CORPUS_PKL}"
+  echo "[1/5] Reuse corpus embedding (best: ${BEST_LABEL}): $(basename "${CORPUS_EMB}")"
+else
+  CORPUS_EMB="${BEST_CORPUS_PKL}"
   mkdir -p "$(dirname "${CORPUS_EMB}")"
-  echo "[1/5] Encoding corpus..."
+  echo "[1/5] Encoding corpus với best checkpoint (${BEST_LABEL})..."
   CUDA_VISIBLE_DEVICES=0 python -m tevatron.retriever.driver.encode \
     --output_dir temp \
     --model_name_or_path "${model}" \
-    --lora --lora_name_or_path "${RETRIEVER_DIR}" \
+    --lora --lora_name_or_path "${BEST_LORA_PATH}" \
     --passage_prefix "Passage: " \
     --bf16 --pooling last --padding_side left \
     --append_eos_token --normalize \
@@ -135,18 +166,19 @@ if [ -z "${CORPUS_EMB}" ]; then
     --dataset_name json \
     --dataset_path "${DATA_DIR}/corpus.jsonl" \
     --encode_output_path "${CORPUS_EMB}"
-else
-  echo "[1/5] Reuse corpus embedding: $(basename "${CORPUS_EMB}")"
 fi
 
 # ── Step 2: Encode train queries ──────────────────────────────────────────────
+#
+# Dùng best checkpoint (không phải final/last) để query embeddings nhất quán
+# với corpus embeddings → FAISS search cho hard negatives đúng distribution.
 
 if [ ! -f "${TRAIN_QUERY_EMB}" ]; then
-  echo "[2/5] Encoding train queries..."
+  echo "[2/5] Encoding train queries với best checkpoint (${BEST_LABEL})..."
   CUDA_VISIBLE_DEVICES=0 python -m tevatron.retriever.driver.encode \
     --output_dir temp \
     --model_name_or_path "${model}" \
-    --lora --lora_name_or_path "${RETRIEVER_DIR}" \
+    --lora --lora_name_or_path "${BEST_LORA_PATH}" \
     --query_prefix "Query: " \
     --bf16 --pooling last --padding_side left \
     --append_eos_token --normalize \
@@ -229,7 +261,7 @@ CUDA_VISIBLE_DEVICES=0 python -m tevatron.reranker.driver.train \
   --num_train_epochs ${epochs} \
   --per_device_train_batch_size ${per_batch} \
   --gradient_accumulation_steps ${grad_accum} \
-  --learning_rate 1e-4 \
+  --learning_rate ${lr} \
   --warmup_steps 100 \
   --save_steps 500 \
   --logging_steps 50 \

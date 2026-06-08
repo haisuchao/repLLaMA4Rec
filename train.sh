@@ -26,6 +26,8 @@ if [ -z "$1" ]; then
   echo "  ./train.sh beauty --data-variant cs5 --query-max-len 160"
   echo "  ./train.sh beauty --data-variant cs10 --query-max-len 256"
   echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b"
+  echo "  ./train.sh beauty --data-variant v2 --tag v2 --v2-format --query-max-len 256"
+  echo "  ./train.sh beauty --data-variant v2-aug --tag v2-aug --v2-format --query-max-len 256"
   exit 1
 fi
 
@@ -39,6 +41,7 @@ num_epochs=3
 query_max_len=128
 data_variant=""
 tag=""
+v2_format=false
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
@@ -49,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --query-max-len)  query_max_len="$2";    shift 2 ;;
     --data-variant)   data_variant="$2";     shift 2 ;;
     --tag)            tag="$2";              shift 2 ;;
+    --v2-format)      v2_format=true;        shift ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./train.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
@@ -108,6 +112,16 @@ fi
 # Training hyperparameters — định nghĩa một lần, dùng chung cho deepspeed và train_config.json
 # (num_epochs, query_max_len đã được parse từ CLI flags ở trên)
 learning_rate="1e-4"
+
+# v2 format: instruction-based query → không cần "Query: "/"Passage: " prefix
+if [ "${v2_format}" = "true" ]; then
+  query_prefix=""
+  passage_prefix=""
+  [ -n "${tag}" ] && echo "  Format v2    : on (empty query/passage prefix)"
+else
+  query_prefix="Query: "
+  passage_prefix="Passage: "
+fi
 save_steps=1000
 passage_max_len=196
 
@@ -142,8 +156,8 @@ deepspeed --include localhost:0 --master_port 60000 \
   --lora_target_modules q_proj,k_proj,v_proj,o_proj,down_proj,up_proj,gate_proj \
   --dataset_path ${TRAIN_PATH} \
   --corpus_path ${CORPUS_PATH} \
-  --query_prefix "Query: " \
-  --passage_prefix "Passage: " \
+  --query_prefix "${query_prefix}" \
+  --passage_prefix "${passage_prefix}" \
   --bf16 \
   --pooling last \
   --padding_side left \

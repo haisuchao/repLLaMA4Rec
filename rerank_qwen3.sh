@@ -1,28 +1,35 @@
 #!/bin/bash
 #
-# rerank.sh — Rerank top-K candidates của retriever bằng cross-encoder đã train (rankLLaMA).
+# rerank_qwen3.sh — Rerank top-K candidates bằng Qwen3-Reranker.
+#                   Hỗ trợ cả zero-shot và fine-tuned (LoRA).
 #
 # Cách sử dụng:
-#   ./rerank.sh <dataset> [--model MODEL] [--tag RTAG] [--split SPLIT]
-#               [--retriever-trec FILE] [--reranker-ckpt DIR]
+#   ./rerank_qwen3.sh <dataset> [--retriever-model MODEL] [--retriever-tag TAG]
+#                                [--reranker-model MODEL] [--lora-path DIR]
+#                                [--split SPLIT] [--batch-size N] [--force]
 #
-#   <dataset>           : beauty | sports | ml-1m
-#   --model MODEL       : base model (mặc định: Qwen/Qwen3-Embedding-0.6B)
-#   --tag RTAG          : tag của retriever (phải khớp với train_reranker.sh --tag)
-#   --split SPLIT       : valid | test (mặc định: test)
-#   --retriever-trec F  : override đường dẫn retriever trec file
-#   --reranker-ckpt DIR : override reranker checkpoint dir (mặc định: final model)
-#   --force             : bỏ qua cache, tạo lại inference pairs
+#   <dataset>              : beauty | sports | ml-1m
+#   --retriever-model M    : retriever base model (mặc định: Qwen/Qwen3-Embedding-0.6B)
+#   --retriever-tag TAG    : tag của retriever (phải khớp với eval.sh --tag)
+#   --reranker-model M     : Qwen3-Reranker model (mặc định: Qwen/Qwen3-Reranker-0.6B)
+#   --lora-path DIR        : path đến LoRA weights từ train_reranker_qwen3.sh
+#                            (để trống = zero-shot)
+#   --split SPLIT          : valid | test (mặc định: test)
+#   --batch-size N         : batch size inference (mặc định: 8)
+#   --force                : tạo lại inference pairs dù đã có
 #
 # Điều kiện tiên quyết:
-#   - eval.sh đã chạy để có retriever trec file
-#   - train_reranker.sh đã chạy để có reranker weights
+#   - eval.sh đã chạy (cần retriever trec file)
+#   - (chỉ với --lora-path) train_reranker_qwen3.sh đã chạy
 #
 # Ví dụ:
-#   ./rerank.sh beauty
-#   ./rerank.sh beauty --split valid
-#   ./rerank.sh beauty --tag aug-5
-#   ./rerank.sh beauty --reranker-ckpt output/beauty/qwen3-embedding-0.6b-reranker/checkpoint-500
+#   # Zero-shot
+#   ./rerank_qwen3.sh beauty
+#   ./rerank_qwen3.sh beauty --retriever-tag aug-5
+#
+#   # Fine-tuned
+#   ./rerank_qwen3.sh beauty \
+#       --lora-path output/beauty/qwen3-embedding-0.6b-qwen3-reranker-0.6b
 
 set -e
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
@@ -31,39 +38,44 @@ export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu"
 
 if [ -z "$1" ]; then
   echo "Lỗi: Cần nhập dataset!"
-  echo "Dùng: ./rerank.sh <dataset> [--model MODEL] [--tag RTAG] [--split SPLIT]"
+  echo "Dùng: ./rerank_qwen3.sh <dataset> [options]"
   exit 1
 fi
 
 dataset=$1; shift
 
-model="Qwen/Qwen3-Embedding-0.6B"
+retriever_model="Qwen/Qwen3-Embedding-0.6B"
 retriever_tag=""
+reranker_model="Qwen/Qwen3-Reranker-0.6B"
+lora_path=""
 split="test"
-retriever_trec=""
-reranker_ckpt=""
+batch_size=8
 force=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)          model="$2";          shift 2 ;;
-    --tag)            retriever_tag="$2";  shift 2 ;;
-    --split)          split="$2";          shift 2 ;;
-    --retriever-trec) retriever_trec="$2"; shift 2 ;;
-    --reranker-ckpt)  reranker_ckpt="$2";  shift 2 ;;
-    --force)          force=true;          shift   ;;
+    --retriever-model) retriever_model="$2"; shift 2 ;;
+    --retriever-tag)   retriever_tag="$2";   shift 2 ;;
+    --reranker-model)  reranker_model="$2";  shift 2 ;;
+    --lora-path)       lora_path="$2";       shift 2 ;;
+    --split)           split="$2";           shift 2 ;;
+    --batch-size)      batch_size="$2";      shift 2 ;;
+    --force)           force=true;           shift   ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; exit 1 ;;
   esac
 done
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
-[ -n "${retriever_tag}" ] && MODEL_TAG="${MODEL_TAG}-${retriever_tag}"
+RETRIEVER_TAG=$(basename "${retriever_model}" | tr '[:upper:]' '[:lower:]')
+[ -n "${retriever_tag}" ] && RETRIEVER_TAG="${RETRIEVER_TAG}-${retriever_tag}"
 
-RETRIEVER_DIR="./output/${dataset}/${MODEL_TAG}"
+RERANKER_TAG=$(basename "${reranker_model}" | tr '[:upper:]' '[:lower:]')
+[ -n "${lora_path}" ] && RERANKER_TAG="${RERANKER_TAG}-ft"
+
+RETRIEVER_DIR="./output/${dataset}/${RETRIEVER_TAG}"
 RETRIEVER_RESULTS="${RETRIEVER_DIR}/embeddings/results"
-RERANKER_DIR="${RETRIEVER_DIR}-reranker"
+RERANKER_DIR="${RETRIEVER_DIR}-${RERANKER_TAG}"
 INFER_DIR="${RERANKER_DIR}/inference"
 DATA_DIR="./dataset/dataset/tevatron/${dataset}"
 
@@ -71,50 +83,53 @@ mkdir -p "${INFER_DIR}"
 
 # ── Tìm retriever trec file ───────────────────────────────────────────────────
 
+BEST_TXT="${RETRIEVER_RESULTS}/eval_${split}_best.txt"
+retriever_trec=""
+
+if [ -f "${BEST_TXT}" ]; then
+  best_label=$(grep "^Best checkpoint" "${BEST_TXT}" | awk '{print $NF}')
+  candidate="${RETRIEVER_RESULTS}/${split}_${best_label}_rank_clean.trec"
+  [ -f "${candidate}" ] && retriever_trec="${candidate}"
+fi
+
 if [ -z "${retriever_trec}" ]; then
-  # Ưu tiên: đọc best checkpoint label từ eval_<split>_best.txt
-  BEST_TXT="${RETRIEVER_RESULTS}/eval_${split}_best.txt"
-  if [ -f "${BEST_TXT}" ]; then
-    best_label=$(grep "^Best checkpoint" "${BEST_TXT}" | awk '{print $NF}')
-    candidate="${RETRIEVER_RESULTS}/${split}_${best_label}_rank_clean.trec"
-    [ -f "${candidate}" ] && retriever_trec="${candidate}"
-  fi
+  retriever_trec=$(ls "${RETRIEVER_RESULTS}/${split}_"*"_rank_clean.trec" 2>/dev/null | head -1)
+fi
 
-  # Fallback: lấy file _rank_clean.trec bất kỳ cho split này
-  if [ -z "${retriever_trec}" ]; then
-    retriever_trec=$(ls "${RETRIEVER_RESULTS}/${split}_"*"_rank_clean.trec" 2>/dev/null | head -1)
-  fi
+if [ -z "${retriever_trec}" ]; then
+  echo "Lỗi: Không tìm thấy retriever trec file tại ${RETRIEVER_RESULTS}"
+  echo "Hãy chạy: ./eval.sh ${dataset}$([ -n "${retriever_tag}" ] && echo " --tag ${retriever_tag}") --split ${split}"
+  exit 1
+fi
 
-  if [ -z "${retriever_trec}" ]; then
-    echo "Lỗi: Không tìm thấy retriever trec file cho split=${split} tại ${RETRIEVER_RESULTS}"
-    echo "Hãy chạy: ./eval.sh ${dataset} --split ${split}"
+# ── Validate LoRA path ────────────────────────────────────────────────────────
+
+if [ -n "${lora_path}" ]; then
+  if [ ! -f "${lora_path}/adapter_model.safetensors" ] && \
+     [ ! -f "${lora_path}/adapter_model.bin" ]; then
+    echo "Lỗi: Không tìm thấy LoRA weights tại ${lora_path}"
+    echo "Hãy chạy: ./train_reranker_qwen3.sh ${dataset}$([ -n "${retriever_tag}" ] && echo " --retriever-tag ${retriever_tag}")"
     exit 1
   fi
 fi
 
-# ── Tìm reranker checkpoint ───────────────────────────────────────────────────
-
-if [ -z "${reranker_ckpt}" ]; then
-  reranker_ckpt="${RERANKER_DIR}"
-fi
-if [ ! -f "${reranker_ckpt}/adapter_model.safetensors" ] && \
-   [ ! -f "${reranker_ckpt}/adapter_model.bin" ]; then
-  echo "Lỗi: Không tìm thấy reranker weights tại ${reranker_ckpt}"
-  echo "Hãy chạy: ./train_reranker.sh ${dataset}$([ -n "${retriever_tag}" ] && echo " --tag ${retriever_tag}")"
-  exit 1
-fi
-
 # Đếm depth từ trec file
 n_cands=$(awk '{print $1}' "${retriever_trec}" | sort | uniq -c | awk '{print $1}' | sort -rn | head -1)
+mode_label=$([ -n "${lora_path}" ] && echo "fine-tuned" || echo "zero-shot")
 
 echo "════════════════════════════════════════════════"
-echo "  Rerank (rankLLaMA)"
+echo "  Rerank (Qwen3-Reranker)"
 echo "════════════════════════════════════════════════"
-echo "  Dataset        : ${dataset}"
-echo "  Split          : ${split}"
-echo "  Retriever trec : $(basename "${retriever_trec}")"
-echo "  Reranker       : ${reranker_ckpt}"
-echo "  Depth          : ${n_cands:-100} candidates/query"
+echo "  Dataset          : ${dataset}"
+echo "  Split            : ${split}"
+echo "  Retriever        : ${RETRIEVER_TAG}"
+echo "  Retriever trec   : $(basename "${retriever_trec}")"
+echo "  Reranker model   : ${reranker_model}"
+echo "  Mode             : ${mode_label}"
+[ -n "${lora_path}" ] && echo "  LoRA path        : ${lora_path}"
+echo "  Batch size       : ${batch_size}"
+echo "  Depth            : ${n_cands:-100} candidates/query"
+echo "  Output dir       : ${RERANKER_DIR}"
 echo "════════════════════════════════════════════════"
 echo ""
 
@@ -128,7 +143,7 @@ EVAL_OUT="${INFER_DIR}/eval_${split}_reranked.txt"
 if [ ! -f "${PAIRS_JSONL}" ] || [ "${force}" = "true" ]; then
   echo "[1/3] Chuẩn bị inference pairs..."
   python prepare_rerank_data.py \
-    --mode  infer \
+    --mode    infer \
     --queries "${DATA_DIR}/${split}.jsonl" \
     --corpus  "${DATA_DIR}/corpus.jsonl" \
     --trec    "${retriever_trec}" \
@@ -139,25 +154,23 @@ fi
 
 # ── Step 2: Rerank ────────────────────────────────────────────────────────────
 
-echo "[2/3] Reranking..."
-CUDA_VISIBLE_DEVICES=0 python -m tevatron.reranker.driver.rerank \
-  --model_name_or_path "${model}" \
-  --lora_name_or_path  "${reranker_ckpt}" \
-  --dataset_name json \
-  --dataset_path "${PAIRS_JSONL}" \
-  --dataset_split train \
-  --rerank_output_path "${RERANKED_TXT}" \
-  --rerank_max_len 256 \
-  --append_eos_token \
-  --per_device_eval_batch_size 32 \
-  --output_dir temp \
-  --bf16
+echo "[2/3] Reranking (${mode_label})..."
+
+LORA_ARG=""
+[ -n "${lora_path}" ] && LORA_ARG="--lora-path ${lora_path}"
+
+CUDA_VISIBLE_DEVICES=0 python rerank_qwen3.py \
+  --pairs      "${PAIRS_JSONL}" \
+  --output     "${RERANKED_TXT}" \
+  --model      "${reranker_model}" \
+  --batch-size "${batch_size}" \
+  --max-length 256 \
+  ${LORA_ARG}
 
 # ── Step 3: Convert → TREC + Evaluate ────────────────────────────────────────
 
 echo "[3/3] Evaluating..."
 
-# Convert qid\tdocid\tscore → TREC format với rank
 RERANKED_TXT="${RERANKED_TXT}" RERANKED_TREC="${RERANKED_TREC}" python3 - << 'PYEOF'
 import os
 from collections import defaultdict
@@ -179,13 +192,13 @@ with open(outp, 'w') as f:
     for qid, docs in results.items():
         docs.sort(key=lambda x: x[1], reverse=True)
         for rank, (docid, score) in enumerate(docs, 1):
-            f.write(f"{qid} Q0 {docid} {rank} {score:.6f} reranker\n")
+            f.write(f"{qid} Q0 {docid} {rank} {score:.6f} qwen3reranker\n")
             n_total += 1
 
 print(f"  {n_total:,} entries → {outp}")
 PYEOF
 
-# Qrels: reuse từ eval.sh nếu có, không thì tạo mới
+# Qrels: reuse từ eval.sh nếu có
 QRELS="${RETRIEVER_RESULTS}/${split}_qrels_clean.txt"
 if [ ! -f "${QRELS}" ]; then
   QRELS="${INFER_DIR}/${split}_qrels_clean.txt"
@@ -224,18 +237,18 @@ python compute_metrics.py \
 
 echo ""
 echo "════════════════════════════════════════════════"
-echo "  Results — ${dataset} / rankLLaMA / ${split}"
+echo "  Results — ${dataset} / Qwen3-Reranker (${mode_label}) / ${split}"
 echo "════════════════════════════════════════════════"
 cat "${EVAL_OUT}"
 echo ""
 echo "✓ Kết quả lưu tại: ${EVAL_OUT}"
 
-# ── So sánh Retriever vs Reranker ─────────────────────────────────────────────
+# ── So sánh Retriever vs Qwen3-Reranker ──────────────────────────────────────
 
 RETRIEVER_EVAL="${RETRIEVER_RESULTS}/eval_${split}_best.txt"
 if [ -f "${RETRIEVER_EVAL}" ]; then
   echo ""
-  echo "── So sánh: Retriever vs Reranker ──────────────"
+  echo "── So sánh: Retriever vs Qwen3-Reranker (${mode_label}) ──"
   RETRIEVER_EVAL="${RETRIEVER_EVAL}" RERANKER_EVAL="${EVAL_OUT}" python3 - << 'PYEOF'
 import os
 
@@ -245,10 +258,8 @@ def read_metrics(path):
         for line in f:
             parts = line.strip().split()
             if len(parts) >= 3 and parts[1] == 'all':
-                try:
-                    m[parts[0]] = float(parts[2])
-                except ValueError:
-                    pass
+                try: m[parts[0]] = float(parts[2])
+                except ValueError: pass
     return m
 
 r  = read_metrics(os.environ['RETRIEVER_EVAL'])

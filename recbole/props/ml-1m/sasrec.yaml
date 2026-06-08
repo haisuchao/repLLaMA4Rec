@@ -61,5 +61,5 @@ eval_args:
   mode: full                 # Rank trên toàn bộ 3416 items
 
 metrics: [Recall, NDCG, MRR, Hit]
-topk: [10, 20]
+topk: [5, 10, 20]
 valid_metric: NDCG@10

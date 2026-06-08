@@ -12,12 +12,15 @@
 #                  → bỏ qua --tag, lưu vào output/<dataset>/<model_tag>-zeroshot/
 #     checkpoint-N evaluate một checkpoint cụ thể (ví dụ: checkpoint-1000)
 #
-#   --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)
-#   --split SPLIT    : valid | test  (mặc định: test)
-#   --tag TAG        : hậu tố output dir để chọn model đã train (ví dụ: aug, gs32)
-#                      bị bỏ qua khi checkpoint=base
-#   --metric METRIC  : metric dùng để chọn best checkpoint (mặc định: ndcg_10)
-#                      chỉ dùng ở best mode
+#   --model MODEL         : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)
+#   --split SPLIT         : valid | test  (mặc định: test)
+#   --tag TAG             : hậu tố output dir để chọn model đã train (ví dụ: aug, gs32)
+#                           bị bỏ qua khi checkpoint=base
+#   --metric METRIC       : metric dùng để chọn best checkpoint (mặc định: ndcg_10)
+#                           chỉ dùng ở best mode
+#   --data-variant VARIANT: tag dữ liệu để đọc corpus/qrels (ví dụ: v2, v2-aug)
+#                           mặc định: trùng với --tag (nếu không chỉ định)
+#   --v2-format           : dùng empty query/passage prefix (cho v2 instruction format)
 #
 # Output:
 #   best   mode → eval_<split>_best.txt    (dùng bởi show_results.py)
@@ -67,6 +70,8 @@ if [ -z "$1" ]; then
   echo "  ./eval.sh beauty --split valid --metric hr_10"
   echo "  ./eval.sh beauty checkpoint-1000 --model Qwen/Qwen3-Embedding-0.6B --split valid"
   echo "  ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag aug"
+  echo "  ./eval.sh beauty --tag v2 --data-variant v2 --v2-format"
+  echo "  ./eval.sh beauty --tag v2-aug --data-variant v2-aug --v2-format"
   exit 1
 fi
 
@@ -85,14 +90,20 @@ model="Qwen/Qwen3-Embedding-0.6B"
 split="test"
 tag=""
 metric="ndcg_10"
+retrieval_depth=100
+data_variant=""
+v2_format=false
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)   model="$2";   shift 2 ;;
-    --split)   split="$2";   shift 2 ;;
-    --tag)     tag="$2";     shift 2 ;;
-    --metric)  metric="$2";  shift 2 ;;
+    --model)            model="$2";            shift 2 ;;
+    --split)            split="$2";            shift 2 ;;
+    --tag)              tag="$2";              shift 2 ;;
+    --metric)           metric="$2";           shift 2 ;;
+    --retrieval-depth)  retrieval_depth="$2";  shift 2 ;;
+    --data-variant)     data_variant="$2";     shift 2 ;;
+    --v2-format)        v2_format=true;        shift ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./eval.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
@@ -121,6 +132,18 @@ SELECTION_METRIC="${metric}"
 
 MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
 
+# data_variant mặc định theo tag nếu không chỉ định
+[ -z "${data_variant}" ] && data_variant="${tag}"
+
+# v2 format: instruction-based query → empty prefix
+if [ "${v2_format}" = "true" ]; then
+  QUERY_PREFIX=""
+  PASSAGE_PREFIX=""
+else
+  QUERY_PREFIX="Query: "
+  PASSAGE_PREFIX="Passage: "
+fi
+
 if [ "${checkpoint}" = "base" ]; then
   # base mode: không dùng LoRA, bỏ qua tag, lưu vào thư mục -zeroshot
   USE_LORA=false
@@ -131,7 +154,7 @@ else
 fi
 
 LORA_BASE="./output/${dataset}/${MODEL_TAG}"
-DATA_DIR="dataset/dataset/tevatron/${dataset}"
+DATA_DIR="dataset/dataset/tevatron/${dataset}${data_variant:+-${data_variant}}"
 EMB_DIR="${LORA_BASE}/embeddings"
 RESULTS_DIR="${EMB_DIR}/results"
 
@@ -144,6 +167,9 @@ echo "  Model      : ${model}"
 echo "  Split      : ${split}"
 [ -n "${tag}" ]             && echo "  Tag        : ${tag}"
 [ "${checkpoint}" = "best" ] && echo "  Metric     : ${metric}"
+echo "  Depth      : ${retrieval_depth}"
+[ -n "${data_variant}" ]    && echo "  Data dir   : ${DATA_DIR}"
+[ "${v2_format}" = "true" ] && echo "  Format     : v2 (empty query/passage prefix)"
 echo "════════════════════════════════════════════════"
 echo ""
 
@@ -220,7 +246,7 @@ eval_ckpt() {
       --output_dir temp \
       --model_name_or_path ${model} \
       ${lora_opts} \
-      --passage_prefix "Passage: " \
+      --passage_prefix "${PASSAGE_PREFIX}" \
       --bf16 --pooling last --padding_side left \
       --append_eos_token --normalize \
       --per_device_eval_batch_size ${eval_batch} \
@@ -238,7 +264,7 @@ eval_ckpt() {
     --output_dir temp \
     --model_name_or_path ${model} \
     ${lora_opts} \
-    --query_prefix "Query: " \
+    --query_prefix "${QUERY_PREFIX}" \
     --bf16 --pooling last --padding_side left \
     --append_eos_token --normalize \
     --per_device_eval_batch_size 64 \
@@ -253,7 +279,7 @@ eval_ckpt() {
   python -m tevatron.retriever.driver.search \
     --query_reps ${query_emb} \
     --passage_reps ${corpus_emb} \
-    --depth 100 --batch_size 128 \
+    --depth ${retrieval_depth} --batch_size 128 \
     --save_text --save_ranking_to ${rank_txt} >&2
 
   # 4. Convert TREC + deduplicate + compute metrics

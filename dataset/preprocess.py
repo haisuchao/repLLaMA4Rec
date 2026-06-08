@@ -127,14 +127,17 @@ def load_amazon(review_file: str, meta_file: str):
                     # categories là list of lists trong Amazon 2014
                     cats = d.get("categories", [])
                     if cats and isinstance(cats[0], list):
-                        cat_str = " ".join(cat for sub in cats for cat in sub)
+                        # Amazon 2014: list of lists → take first path, join with " > "
+                        cat_path = [str(c) for c in cats[0] if str(c).strip()]
+                        cat_str = " > ".join(cat_path)
                     else:
-                        cat_str = " ".join(str(c) for c in cats)
+                        cat_path = [str(c) for c in cats if str(c).strip()]
+                        cat_str = " > ".join(cat_path)
 
                     item_meta[asin] = {
                         "title":       str(title),
                         "brand":       str(d.get("brand", "") or ""),
-                        "categories":  cat_str,
+                        "categories":  cat_str,  # full path, e.g. "Beauty > Nail Care > Gel Polish"
                         "description": str(d.get("description") or "")[:200],
                     }
             except Exception:
@@ -166,7 +169,8 @@ def load_movielens(data_dir: str):
         str(row["item_id"]): {
             "title":       row["title"],
             "brand":       "",
-            "categories":  row["genres"].replace("|", " "),
+            "categories":  "",
+            "genres":      row["genres"],  # e.g. "Action|Adventure|Sci-Fi" — kept raw for v2 format
             "description": "",
         }
         for _, row in movies.iterrows()

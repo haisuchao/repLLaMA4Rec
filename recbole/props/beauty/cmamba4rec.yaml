@@ -21,7 +21,7 @@ loss_type: CE
 train_neg_sample_args: ~
 
 # Mamba SSM hyperparameters
-d_state: 16        # SSM state dimension
+d_state: 32        # SSM state dimension
 d_conv: 4          # Mamba internal conv kernel size
 expand: 2          # Expansion factor (inner_dim = expand * hidden_size)
 
@@ -31,10 +31,6 @@ cnn_size: 3        # Conv1d kernel size
 # Sequence
 MAX_ITEM_LIST_LENGTH: 200
 max_seq_length: 200   # phải khớp với MAX_ITEM_LIST_LENGTH
-
-# Multi-intent (tắt mặc định)
-multi_intent: False
-beta: 0.5
 
 # ── Training ─────────────────────────────────────────────────
 epochs: 300
