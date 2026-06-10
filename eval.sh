@@ -18,6 +18,8 @@
 #                           bị bỏ qua khi checkpoint=base
 #   --metric METRIC       : metric dùng để chọn best checkpoint (mặc định: ndcg_10)
 #                           chỉ dùng ở best mode
+#   --query-max-len N     : số token tối đa của query khi encode (mặc định: auto-read từ train_config.json; fallback 128)
+#                           phải khớp với giá trị dùng khi train; v2 format cần ít nhất 256
 #   --data-variant VARIANT: tag dữ liệu để đọc corpus/qrels (ví dụ: v2, v2-aug)
 #                           mặc định: trùng với --tag (nếu không chỉ định)
 #   --v2-format           : dùng empty query/passage prefix (cho v2 instruction format)
@@ -93,6 +95,7 @@ metric="ndcg_10"
 retrieval_depth=100
 data_variant=""
 v2_format=false
+query_max_len=""    # empty = auto-read từ train_config.json (fallback 128)
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
@@ -102,6 +105,7 @@ while [[ $# -gt 0 ]]; do
     --tag)              tag="$2";              shift 2 ;;
     --metric)           metric="$2";           shift 2 ;;
     --retrieval-depth)  retrieval_depth="$2";  shift 2 ;;
+    --query-max-len)    query_max_len="$2";    shift 2 ;;
     --data-variant)     data_variant="$2";     shift 2 ;;
     --v2-format)        v2_format=true;        shift ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./eval.sh để xem hướng dẫn."; exit 1 ;;
@@ -158,6 +162,19 @@ DATA_DIR="dataset/dataset/tevatron/${dataset}${data_variant:+-${data_variant}}"
 EMB_DIR="${LORA_BASE}/embeddings"
 RESULTS_DIR="${EMB_DIR}/results"
 
+# Auto-detect query_max_len: đọc từ train_config.json nếu user không chỉ định.
+# Đảm bảo eval dùng cùng max_len với lúc train (quan trọng với v2 format: ~194 tok).
+if [ -z "${query_max_len}" ]; then
+  cfg="${LORA_BASE}/train_config.json"
+  if [ -f "${cfg}" ]; then
+    query_max_len=$(python -c "import json; d=json.load(open('${cfg}')); print(d.get('query_max_len', 128))" 2>/dev/null || echo "128")
+  elif [ "${v2_format}" = "true" ]; then
+    query_max_len=256   # v2 format cs=3 cần ~194 tok; 256 là safe default
+  else
+    query_max_len=128
+  fi
+fi
+
 echo "════════════════════════════════════════════════"
 echo "  Evaluate repLLaMA"
 echo "════════════════════════════════════════════════"
@@ -168,6 +185,7 @@ echo "  Split      : ${split}"
 [ -n "${tag}" ]             && echo "  Tag        : ${tag}"
 [ "${checkpoint}" = "best" ] && echo "  Metric     : ${metric}"
 echo "  Depth      : ${retrieval_depth}"
+echo "  Query len  : ${query_max_len}"
 [ -n "${data_variant}" ]    && echo "  Data dir   : ${DATA_DIR}"
 [ "${v2_format}" = "true" ] && echo "  Format     : v2 (empty query/passage prefix)"
 echo "════════════════════════════════════════════════"
@@ -267,8 +285,8 @@ eval_ckpt() {
     --query_prefix "${QUERY_PREFIX}" \
     --bf16 --pooling last --padding_side left \
     --append_eos_token --normalize \
-    --per_device_eval_batch_size 64 \
-    --query_max_len 128 \
+    --per_device_eval_batch_size ${eval_batch} \
+    --query_max_len ${query_max_len} \
     --dataset_name json \
     --dataset_path ${DATA_DIR}/${s}.jsonl \
     --encode_is_query \
