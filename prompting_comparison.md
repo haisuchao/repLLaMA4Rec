@@ -18,28 +18,20 @@ repLLaMA gốc biểu diễn lịch sử tương tác của user **chỉ bằng 
 ### 2.1 Query — Biểu diễn lịch sử tương tác của user
 Giả sử một user <b>u</b> có lịch sử tương tác với 3 item lần lượt theo thứ tự <i>i1 -> i2 -> i3</i>, mỗi một item <i>i</i> sẽ có các thông tin bao gồm <b><i>title, categories, brand</i></b>. Chúng ta sẽ biểu diễn query của user <b>u</b> theo hai cách như sau:
 <table>
-<tr>
-<th width="50%" valign="top">repLLaMA gốc</th>
-<th width="50%" valign="top">Metadata-Enhanced (cải tiến)</th>
+<tr valign="top">
+<th width="50%" >repLLaMA gốc</th>
+<th width="50%" >Metadata-Enhanced (cải tiến)</th>
 </tr>
-<tr>
-<td valign="top">
+<tr valign="top">
+<td>
 
 **Format:**
 
 ```
 Query: <i1's Title>, <i2's Title>, <i3's Title> <EOS>
 ```
-
-**Ví dụ:**
-
-```
-Query: Iphone13 Promax, Phonecase Gold,
-Charger Ugreen <EOS>
-```
-
 </td>
-<td valign="top">
+<td>
 
 **Format:**
 
@@ -63,7 +55,18 @@ Title: <i3's Title>. Category: <i3's categories>.
 Brand: <i3's brand>.
 <EOS>
 ```
+</td>
+</tr>
+<tr valign="top">
+<td>
+**Ví dụ:**
 
+```
+Query: Iphone13 Promax, Phonecase Gold,
+Charger Ugreen <EOS>
+```
+</td>
+<td>
 **Ví dụ:**
 
 ```
@@ -86,7 +89,6 @@ Title: Charger Ugreen. Category: Accessories
 > charger. Brand: Ugreen.
 <EOS>
 ```
-
 </td>
 </tr>
 </table>
@@ -94,12 +96,12 @@ Title: Charger Ugreen. Category: Accessories
 ### 2.2 Document — Biểu diễn candidate item
 Tương tư như vậy, với mỗi candidate item <b>i</b> sẽ có các thông tin bao gồm <b><i>title, categories, brand</i></b>, chúng ta có 2 cách biểu diễn như sau:
 <table>
-<tr>
-<th width="50%" valign="top">repLLaMA gốc</th>
-<th width="50%" valign="top">Metadata-Enhanced (cải tiến)</th>
+<tr valign="top">
+<th width="50%" >repLLaMA gốc</th>
+<th width="50%" >Metadata-Enhanced (cải tiến)</th>
 </tr>
-<tr>
-<td valign="top">
+<tr valign="top">
+<td >
 
 **Format:**
 
@@ -107,14 +109,8 @@ Tương tư như vậy, với mỗi candidate item <b>i</b> sẽ có các thông
 Passage: <candidate item's title> <EOS>
 ```
 
-**Ví dụ:**
-
-```
-Passage: Airpod 3 White <EOS>
-```
-
 </td>
-<td valign="top">
+<td >
 
 **Format:**
 
@@ -123,13 +119,23 @@ Title: <item's Title>. Category: <item's categories>.
 Brand: <item's brand>. <EOS>
 ```
 
+</td>
+</tr>
+<tr valign="top">
+<td>
+**Ví dụ:**
+
+```
+Passage: Airpod 3 White <EOS>
+```
+</td>
+<td>
 **Ví dụ:**
 
 ```
 Title: Airpod 3 White. Category: Accessories
 > earbud. Brand: Apple. <EOS>
 ```
-
 </td>
 </tr>
 </table>
