@@ -59,6 +59,7 @@ Brand: <i3's brand>.
 </tr>
 <tr valign="top">
 <td>
+
 **Ví dụ:**
 
 ```
@@ -67,6 +68,7 @@ Charger Ugreen <EOS>
 ```
 </td>
 <td>
+
 **Ví dụ:**
 
 ```
@@ -123,6 +125,7 @@ Brand: <item's brand>. <EOS>
 </tr>
 <tr valign="top">
 <td>
+
 **Ví dụ:**
 
 ```
@@ -130,6 +133,7 @@ Passage: Airpod 3 White <EOS>
 ```
 </td>
 <td>
+
 **Ví dụ:**
 
 ```
