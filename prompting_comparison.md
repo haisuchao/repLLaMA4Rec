@@ -1,4 +1,4 @@
-# So sánh Prompt Representation: repLLaMA gốc vs. Metadata-Enhanced Prompting
+# So sánh Query Representation: repLLaMA gốc vs. Metadata-Enhanced Query representation
 
 ## 1. Tại sao cần cải tiến?
 
@@ -11,21 +11,19 @@ repLLaMA gốc biểu diễn lịch sử tương tác của user **chỉ bằng 
 | **Prompt quá đơn giản, không dẫn dắt LLM** | Format `"Query: title1, title2, title3"` không cho LLM biết *nhiệm vụ cần thực hiện* — chỉ là một danh sách tên sản phẩm, thiếu instruction rõ ràng. |
 | **Candidate item cũng thiếu thông tin** | Phía document chỉ có title — LLM không thể so khớp category hay brand giữa lịch sử user và candidate. |
 
-**Tóm lại:** repLLaMA gốc chỉ dùng *tên sản phẩm* để matching, trong khi quyết định mua hàng thực tế phụ thuộc vào nhiều yếu tố hơn (ngành hàng, thương hiệu, mức giá, ...). Bổ sung metadata giúp LLM hiểu sâu hơn về *ý định mua sắm* (purchase intent) của user.
-
 ---
 
 ## 2. So sánh chi tiết
 
 ### 2.1 Query — Biểu diễn lịch sử tương tác của user
-
+Giả sử một user <b>u</b> có lịch sử tương tác với 3 item lần lượt theo thứ tự <i>i1 -> i2 -> i3</i>, mỗi một item <i>i</i> sẽ có các thông tin bao gồm <b><i>title, categories, brand</i></b>. Chúng ta sẽ biểu diễn query của user <b>u</b> theo hai cách như sau:
 <table>
 <tr>
-<th width="50%">repLLaMA gốc</th>
-<th width="50%">Metadata-Enhanced (cải tiến)</th>
+<th width="50%" valign="top">repLLaMA gốc</th>
+<th width="50%" valign="top">Metadata-Enhanced (cải tiến)</th>
 </tr>
 <tr>
-<td>
+<td valign="top">
 
 **Format:**
 
@@ -41,7 +39,7 @@ Charger Ugreen <EOS>
 ```
 
 </td>
-<td>
+<td valign="top">
 
 **Format:**
 
@@ -94,14 +92,14 @@ Title: Charger Ugreen. Category: Accessories
 </table>
 
 ### 2.2 Document — Biểu diễn candidate item
-
+Tương tư như vậy, với mỗi candidate item <b>i</b> sẽ có các thông tin bao gồm <b><i>title, categories, brand</i></b>, chúng ta có 2 cách biểu diễn như sau:
 <table>
 <tr>
-<th width="50%">repLLaMA gốc</th>
-<th width="50%">Metadata-Enhanced (cải tiến)</th>
+<th width="50%" valign="top">repLLaMA gốc</th>
+<th width="50%" valign="top">Metadata-Enhanced (cải tiến)</th>
 </tr>
 <tr>
-<td>
+<td valign="top">
 
 **Format:**
 
@@ -116,7 +114,7 @@ Passage: Airpod 3 White <EOS>
 ```
 
 </td>
-<td>
+<td valign="top">
 
 **Format:**
 
@@ -138,15 +136,13 @@ Title: Airpod 3 White. Category: Accessories
 
 ### 2.3 Cơ chế tính score (giữ nguyên)
 
-Cả hai phiên bản đều sử dụng cùng cơ chế scoring — **không thay đổi kiến trúc model**:
+Cả hai cách đều sử dụng cùng cơ chế scoring — **không thay đổi kiến trúc model**:
 
 ```
-1. v_q = LLM(query)  → lấy vector tại vị trí <EOS>
-2. v_d = LLM(document) → lấy vector tại vị trí <EOS>
+1. v_q = LLM(query)  → lấy vector tại vị trí <EOS> của query
+2. v_d = LLM(document) → lấy vector tại vị trí <EOS> của document
 3. score = v_q · v_d   (dot product)
 ```
-
-Cải tiến chỉ nằm ở **nội dung text đầu vào**, không thay đổi model hay pipeline.
 
 ---
 
@@ -172,7 +168,6 @@ Cải tiến chỉ nằm ở **nội dung text đầu vào**, không thay đổi
 
 - **Quá dài:** Description có thể dài hàng trăm từ, nhân với 3 items trong query sẽ vượt giới hạn `--query-max-len` (128-160 tokens).
 - **Nhiễu:** Description chứa nhiều thông tin marketing không liên quan đến ý định mua sắm.
-- **Diminishing returns:** Category + Brand đã cung cấp tín hiệu chính yếu; thêm description tăng chi phí tính toán nhưng lợi ích chưa rõ ràng.
 
 ---
 
@@ -187,75 +182,5 @@ Cải tiến chỉ nằm ở **nội dung text đầu vào**, không thay đổi
 | **Prefix query** | `"Query: "` | Đoạn instruction dài, kết thúc bằng `"Purchase history:"` |
 | **Prefix document** | `"Passage: "` | `"Title: ... Category: ... Brand: ..."` |
 | **Kiến trúc model** | Không đổi | Không đổi |
-| **Cơ chế scoring** | `v_q · v_d` (dot product) | `v_q · v_d` (dot product) — giữ nguyên |
-| **Chi phí token** | Thấp (~50-70 tokens/query) | Cao hơn (~120-200 tokens/query) |
-
----
-
-## 5. Minh họa trực quan
-
-```
-═══════════════════════════════════════════════════════════════
-                     repLLaMA GỐC
-═══════════════════════════════════════════════════════════════
-
-  User history                    Candidate
-  ┌─────────────────────┐         ┌──────────────────┐
-  │ Query: Iphone13     │         │ Passage: Airpod  │
-  │ Promax, Phonecase   │         │ 3 White <EOS>    │
-  │ Gold, Charger       │         │                  │
-  │ Ugreen <EOS>        │         │                  │
-  └─────────┬───────────┘         └────────┬─────────┘
-            │                              │
-            ▼                              ▼
-        ┌───────┐                      ┌───────┐
-        │  LLM  │                      │  LLM  │
-        └───┬───┘                      └───┬───┘
-            │                              │
-            ▼                              ▼
-          v_q ─────── dot product ─────── v_d  →  score
-           (chỉ biết TÊN sản phẩm)
-
-═══════════════════════════════════════════════════════════════
-                  METADATA-ENHANCED
-═══════════════════════════════════════════════════════════════
-
-  User history                    Candidate
-  ┌─────────────────────┐         ┌──────────────────┐
-  │ [Instruction...]    │         │ Title: Airpod 3  │
-  │ Purchase history:   │         │ White.           │
-  │                     │         │ Category:        │
-  │ Title: Iphone13.    │         │ Accessories >    │
-  │ Category: Elec >    │         │ earbud.          │
-  │ Mobile > iphone.    │         │ Brand: Apple.    │
-  │ Brand: Apple.       │         │ <EOS>            │
-  │                     │         │                  │
-  │ Title: Phonecase    │         │                  │
-  │ Gold.               │         │                  │
-  │ Category: Acc >     │         │                  │
-  │ Phonecase.          │         │                  │
-  │ Brand: None.        │         │                  │
-  │                     │         │                  │
-  │ Title: Charger      │         │                  │
-  │ Ugreen.             │         │                  │
-  │ Category: Acc >     │         │                  │
-  │ charger.            │         │                  │
-  │ Brand: Ugreen.      │         │                  │
-  │ <EOS>               │         │                  │
-  └─────────┬───────────┘         └────────┬─────────┘
-            │                              │
-            ▼                              ▼
-        ┌───────┐                      ┌───────┐
-        │  LLM  │                      │  LLM  │
-        └───┬───┘                      └───┬───┘
-            │                              │
-            ▼                              ▼
-          v_q ─────── dot product ─────── v_d  →  score
-     (biết TÊN + NGÀNH HÀNG + THƯƠNG HIỆU)
-```
-
-**Ví dụ suy luận mà LLM có thể thực hiện với metadata:**
-
-- User mua toàn hệ sinh thái *điện thoại + phụ kiện* → candidate `Airpod 3 White` (Accessories > earbud, **Apple**) phù hợp vì cùng brand Apple và cùng nhóm phụ kiện.
-- Nếu candidate là `Samsung Galaxy Buds` (Accessories > earbud, Samsung) — cùng category nhưng khác brand → score thấp hơn do user thể hiện brand loyalty với Apple.
-- Với repLLaMA gốc, LLM chỉ thấy tên `"Airpod 3 White"` và `"Samsung Galaxy Buds"` — không có tín hiệu brand/category rõ ràng để phân biệt.
+| **Cơ chế scoring** | Không đổi | Không đổi |
+| **Chi phí token** | ~50-70 tokens/query | ~120-200 tokens/query (tốn thời gian training hơn) |
