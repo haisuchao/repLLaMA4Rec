@@ -1240,10 +1240,19 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 - [x] `train_reranker_qwen3.sh` + `train_reranker_qwen3.py` — fine-tune Qwen3-Reranker với InfoNCE loss trên yes-logits
 - [x] `rerank_qwen3.sh` + `rerank_qwen3.py` — Qwen3-Reranker reranking (zero-shot và fine-tuned)
 - [x] Recommendation-specific task instruction cho Qwen3-Reranker
+- [x] `export_tevatron_v2.py` — instruction-based query/document format (Title/Category/Brand có structure,
+      xem `improvement_plan.md` §4) — best model hiện tại (`v2-cs5-aug-gs20`) dùng format này
+- [x] `filter_history.py` + `eval_filter.py` — history filter post-processing (loại history items khỏi FAISS
+      results, không cần train lại). Đã chạy đầy đủ trên tất cả model đã eval — cải thiện NDCG@10 +47-87%
+      tùy dataset. Xem `experiments.md` §"Kết quả History Filter"
 
 ### Cần làm
 - [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
 - [ ] Đánh giá Qwen3-Reranker fine-tuned và so sánh với rankLLaMA
+- [ ] Áp dụng history filter (A1) vào reranker input (`prepare_rerank_data.py`) — hiện chỉ mới có ở phía
+      retriever evaluation
+- [ ] Tích hợp `--filter-history` trực tiếp vào `eval.sh` thay vì chạy script rời `eval_filter.py`
+- [ ] Kiểm tra lại checkpoint selection theo filtered valid metric (hiện chọn theo unfiltered)
 
 ### Cải tiến tiềm năng
 - [ ] Hard negative mining (BM25 hoặc từ top retrieved items) để cải thiện chất lượng training

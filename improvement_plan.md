@@ -9,9 +9,15 @@
 
 ### 1.1 Kết quả tốt nhất đang có (Beauty test set)
 
+> **Cập nhật 2026-07-14**: Sau khi chạy `show_results.py --update-experiments`, best model hiện tại là
+> `v2-cs5-aug-gs20` (v2 instruction format + augmentation + group-size 20), không còn là `aug-5`. Kết hợp
+> thêm history filter (Phase 2, xem §6.1 và `experiments.md`), NDCG@10 gần như gấp đôi so với số liệu gốc
+> bên dưới (raw → full-filtered): 0.0390→0.0631 (aug-5) hay 0.0405→0.0631 (v2-cs5-aug-gs20).
+
 | Model | NDCG@10 | HR@10 | HR@20 | MRR@10 |
 |---|---|---|---|---|
-| qwen3-embedding-0.6b-aug-5 | **0.0390** | **0.0905** | **0.1409** | 0.0235 |
+| qwen3-embedding-0.6b-v2-cs5-aug-gs20 (best hiện tại) | **0.0405** | **0.0919** | **0.1439** | 0.0251 |
+| qwen3-embedding-0.6b-aug-5 | 0.0390 | 0.0905 | 0.1409 | 0.0235 |
 | qwen3-embedding-0.6b (standard) | 0.0372 | 0.0861 | 0.1318 | 0.0224 |
 | zero-shot | 0.0135 | 0.0315 | 0.0488 | 0.0081 |
 
@@ -363,13 +369,19 @@ Passage-max-len: có thể giữ 196 (không gây vấn đề) hoặc giảm xu�
 
 ## 6. Các hướng cải thiện khác (chưa implement, để tham khảo)
 
-### 6.1 Filter history items — post-processing (đã có plan ở `reranker_redesign_plan.md`)
+### 6.1 Filter history items — post-processing (đã implement, xem `experiments.md`)
 
 **Số liệu hỗ trợ**: 44.6% top-5 bị waste bởi history items.
 
-Implement đơn giản: sau FAISS search, loại bỏ items có text match với query history trước khi trả về top-K. Không cần train lại. Xem `reranker_redesign_plan.md` section A1 để biết matching logic chi tiết.
+**Đã implement** (`filter_history.py` + `eval_filter.py` ở root) — filter bằng item ID (chính xác hơn text
+matching đề xuất ban đầu trong `reranker_redesign_plan.md` §A1, vì dùng trực tiếp sequence đã biết thay vì
+so khớp chuỗi). Hai chế độ: `context` (chỉ items trong query) và `full` (toàn bộ lịch sử, tương đương SASRec).
+Không cần train lại, chỉ đọc TREC run files đã có từ `eval.sh`. Đã chạy đầy đủ trên tất cả model đã eval
+(Beauty/Sports/ML-1M, 2026-07-14) — full mode cải thiện NDCG@10 +47–87%. Chi tiết: `experiments.md`
+§"Kết quả History Filter — Post-processing (Phase 2)".
 
-**Cần implement song song**: cả ở retriever evaluation (`eval.sh`) lẫn reranker input (`prepare_rerank_data.py`).
+**Còn thiếu**: filter chưa được áp dụng ở phía reranker input (`prepare_rerank_data.py`, plan A1 gốc), và
+chưa tích hợp trực tiếp vào `eval.sh` như một flag (hiện là script rời).
 
 ### 6.2 Multi-position training
 
@@ -401,9 +413,17 @@ Recall@100 = 0.2673. Recall@200 ước tính ~35%. Không cần train lại — 
 - [ ] Train + eval: beauty v2, beauty v2-aug
 
 ### Phase 2 — History filtering
-- [ ] Implement filter-history post-processing trong `eval.sh` / evaluation pipeline
-- [ ] Implement A1 trong `reranker_redesign_plan.md`
-- [ ] Đo improvement khi filter history (kỳ vọng HR@10 tăng đáng kể)
+- [x] Implement filter-history post-processing — `filter_history.py` + `eval_filter.py` (root, đứng độc lập
+      với `eval.sh`, hoạt động trên TREC run files đã có sẵn, không cần train/encode lại)
+- [x] Đo improvement khi filter history trên toàn bộ model đã eval (Beauty/Sports/ML-1M, 2026-07-14) — xem
+      bảng đầy đủ tại `experiments.md` §"Kết quả History Filter". Kết quả: **full mode cải thiện NDCG@10
+      +47–87% tùy dataset**, xác nhận giả thuyết ở §2.1. Best model (`v2-cs5-aug-gs20`, Beauty) đạt
+      NDCG@10=0.0631 / HR@10=0.1119 sau filter, so với 0.0390/0.0905 trước đây.
+- [ ] Implement A1 trong `reranker_redesign_plan.md` — filter chưa được áp dụng ở phía input reranker
+      (`prepare_rerank_data.py`), chỉ mới có ở phía retriever evaluation
+- [ ] Tích hợp `--filter-history` trực tiếp vào `eval.sh` thay vì chạy script rời `eval_filter.py`
+- [ ] Xác nhận lại best-checkpoint selection: hiện `best` được chọn theo **unfiltered** valid NDCG@10 — chưa
+      kiểm tra liệu chọn theo filtered valid metric có cho checkpoint tốt hơn cho kịch bản filtered hay không
 
 ### Phase 3 — Scaling và ablation
 - [ ] Thử cs=5 với format mới
