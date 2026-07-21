@@ -157,7 +157,7 @@ tức augmentation đóng góp khá nhỏ ở mức raw (+1.6%) khi cô lập ho
 | (−) Fine-tuning → zero-shot + filter | 0.0102 | 0.0195 | −41.0% |
 | (−) Fine-tuning → zero-shot, raw | 0.0071 | 0.0170 | −59.0% |
 
-### ML-1M (base: `cs5-gs50-aug`)
+### ML-1M — 0.6B (base: `cs5-gs50-aug`)
 
 | Variant | NDCG@10 | HR@10 | Δ NDCG@10 |
 |---|:---:|:---:|:---:|
@@ -170,6 +170,22 @@ tức augmentation đóng góp khá nhỏ ở mức raw (+1.6%) khi cô lập ho
 \* `cs5-gs32` và `cs5-gs50-aug` khác nhau ở cả augmentation lẫn group_size (32 vs 50) — không tách biệt
 tuyệt đối, nhưng đây là cặp gần nhất hiện có (cùng context_size=5).
 
+### ML-1M — 4B (base: `cs5-gs50-aug-4b`)
+
+| Variant | NDCG@10 | HR@10 | Δ NDCG@10 |
+|---|:---:|:---:|:---:|
+| **Full pipeline** (context=5 + augmentation + History Filter) | **0.1601** | **0.2829** | — |
+| (−) History filter → raw ranking | 0.0825 | 0.1909 | −48.5% |
+| (−) Augmentation → `cs5-gs50-4b` (context=5, không aug, cùng group_size=50) + filter | 0.0796 | 0.1470 | −50.3% |
+| (−) Fine-tuning → zero-shot + filter | 0.0257 | 0.0469 | −84.0% |
+| (−) Fine-tuning → zero-shot, raw | 0.0130 | 0.0343 | −91.9% |
+
+Khác với ablation 0.6B ở trên, cặp "(−) Augmentation" của 4B giữ nguyên group_size=50 ở cả hai phía — cô lập
+đúng một biến (chỉ augmentation), sạch hơn phép so sánh 0.6B (vốn đổi cả augmentation lẫn group_size 32 vs
+50). Xu hướng đóng góp của từng thành phần giống hệt 0.6B (fine-tuning > augmentation ≈ history filter), và
+4B vượt 0.6B ở mọi variant tương ứng — củng cố luận điểm model scale lớn hơn cải thiện chất lượng nhất quán,
+không chỉ ở headline.
+
 ---
 
 ## 4. So sánh kích thước model (0.6B vs lớn hơn)
@@ -178,10 +194,11 @@ tuyệt đối, nhưng đây là cặp gần nhất hiện có (cùng context_si
 |---|:---:|:---:|
 | Beauty | NDCG@10=0.0616, HR@10=0.1088 | **N/A — training 4B đã chạy nhưng KHÔNG có checkpoint** (thư mục `output/beauty/qwen3-embedding-4b-*` chỉ có `train_config.json`, có thể do OOM hoặc bị dừng giữa chừng). Cần train lại (v1 format) — xem §5, mục 4. |
 | Sports | NDCG@10=0.0173, HR@10=0.0309 | N/A — chưa thử |
-| ML-1M | NDCG@10=0.1041, HR@10=0.1887 | N/A — chưa thử |
+| ML-1M | NDCG@10=0.1041, HR@10=0.1887 | **NDCG@10=0.1601, HR@10=0.2829** (`cs5-gs50-aug-4b`, cùng data variant/group_size với headline 0.6B, chỉ đổi model — xem §3) → **+53.8% NDCG@10, +49.9% HR@10** so với 0.6B |
 
-**Không có số liệu model lớn hơn nào đáng tin cậy hiện tại.** Đừng đưa số liệu 4B vào paper cho tới khi
-train lại thành công. Xem `MULTI_MACHINE_GUIDE.md` §3 (Máy B/C) để chạy trên máy khác (4B cần VRAM sát 12GB,
+**ML-1M đã có số liệu 4B đáng tin cậy** (train thành công, đủ checkpoint, đã qua History Filter — xem §3).
+Beauty/Sports vẫn **chưa có số liệu 4B đáng tin cậy** — đừng đưa vào paper cho tới khi train lại thành công.
+Xem `MULTI_MACHINE_GUIDE.md` §3 (Máy B/C) để chạy trên máy khác (4B cần VRAM sát 12GB trên card 12GB gốc,
 nên ưu tiên máy có ≥16GB VRAM nếu có, để tránh lặp lại lỗi OOM). Dùng v1 format cho 4B — không lặp lại sai
 lầm đầu tư vào v2 (§1.4).
 
