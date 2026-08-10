@@ -11,13 +11,16 @@ if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
   echo "Cách sử dụng: ./train.sh <dataset> [--model MODEL] [--group-size N] [--epochs N] [--query-max-len N] [--data-variant TAG] [--tag TAG]"
   echo ""
-  echo "  dataset             : beauty | sports | ml-1m | steam  (bắt buộc)"
+  echo "  dataset             : beauty | sports | toys | ml-1m | steam  (bắt buộc)"
   echo "  --model MODEL       : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
   echo "  --group-size N      : số passages/query = 1 positive + N-1 negatives (mặc định: 8)"
   echo "  --epochs N          : số training epochs (mặc định: 3)"
   echo "  --query-max-len N   : số token tối đa của query (mặc định: 128; tăng khi dùng context_size lớn)"
   echo "  --data-variant TAG  : đọc data từ tevatron/<dataset>-<TAG>/ (ví dụ: cs5, w3)"
   echo "  --tag TAG           : hậu tố output dir để phân biệt experiment (mặc định: lấy từ --data-variant)"
+  echo "  --untie-encoder     : dùng 2 LoRA adapter riêng cho query/passage thay vì 1 adapter"
+  echo "                        dùng chung (tied, mặc định) — vẫn chia sẻ 1 backbone frozen"
+  echo "                        duy nhất nên tốn thêm GPU không đáng kể (~vài chục MB)"
   echo ""
   echo "Ví dụ:"
   echo "  ./train.sh beauty"
@@ -28,6 +31,7 @@ if [ -z "$1" ]; then
   echo "  ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b"
   echo "  ./train.sh beauty --data-variant v2 --tag v2 --v2-format --query-max-len 256"
   echo "  ./train.sh beauty --data-variant v2-aug --tag v2-aug --v2-format --query-max-len 256"
+  echo "  ./train.sh beauty --untie-encoder --tag untied"
   exit 1
 fi
 
@@ -42,17 +46,19 @@ query_max_len=128
 data_variant=""
 tag=""
 v2_format=false
+untie_encoder=false
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)          model="$2";            shift 2 ;;
-    --group-size)     train_group_size="$2"; shift 2 ;;
-    --epochs)         num_epochs="$2";       shift 2 ;;
-    --query-max-len)  query_max_len="$2";    shift 2 ;;
-    --data-variant)   data_variant="$2";     shift 2 ;;
-    --tag)            tag="$2";              shift 2 ;;
-    --v2-format)      v2_format=true;        shift ;;
+    --model)           model="$2";            shift 2 ;;
+    --group-size)      train_group_size="$2"; shift 2 ;;
+    --epochs)          num_epochs="$2";       shift 2 ;;
+    --query-max-len)   query_max_len="$2";    shift 2 ;;
+    --data-variant)    data_variant="$2";     shift 2 ;;
+    --tag)             tag="$2";              shift 2 ;;
+    --v2-format)       v2_format=true;        shift ;;
+    --untie-encoder)   untie_encoder=true;    shift ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./train.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
@@ -75,7 +81,7 @@ case "${model}" in
 esac
 
 case "$dataset" in
-  beauty|sports|ml-1m|steam)
+  beauty|sports|toys|ml-1m|steam)
     echo "Dataset          : ${dataset}"
     echo "Model            : ${model}"
     echo "Train group size : ${train_group_size} (1 positive + $((train_group_size - 1)) negatives)"
@@ -83,10 +89,11 @@ case "$dataset" in
     echo "Query max len    : ${query_max_len}"
     [ -n "${data_variant}" ] && echo "Data variant     : ${data_variant}"
     [ -n "${tag}" ]          && echo "Output tag       : ${tag}"
+    [ "${untie_encoder}" = "true" ] && echo "Untie encoder    : yes (2 LoRA adapter riêng cho query/passage)"
     ;;
   *)
     echo "Lỗi: Dataset '${dataset}' không hợp lệ!"
-    echo "Vui lòng chỉ nhập một trong các dataset sau: beauty, sports, ml-1m, steam."
+    echo "Vui lòng chỉ nhập một trong các dataset sau: beauty, sports, toys, ml-1m, steam."
     exit 1
     ;;
 esac
@@ -141,11 +148,17 @@ cat > "${LORA_DIR}/train_config.json" << JSON
   "save_steps": ${save_steps},
   "query_max_len": ${query_max_len},
   "passage_max_len": ${passage_max_len},
+  "untie_encoder": ${untie_encoder},
   "timestamp": "$(date -Iseconds)"
 }
 JSON
 echo "  Config saved → ${LORA_DIR}/train_config.json"
 echo ""
+
+# --untie_encoder: 2 LoRA adapter riêng cho query/passage, chia sẻ 1 backbone frozen
+# (xem tevatron/src/tevatron/retriever/modeling/encoder.py — EncoderModel.build())
+untie_flag=""
+[ "${untie_encoder}" = "true" ] && untie_flag="--untie_encoder"
 
 deepspeed --include localhost:0 --master_port 60000 \
   --module tevatron.retriever.driver.train \
@@ -173,7 +186,8 @@ deepspeed --include localhost:0 --master_port 60000 \
   --passage_max_len ${passage_max_len} \
   --num_train_epochs ${num_epochs} \
   --logging_steps 100 \
-  --save_steps ${save_steps}
+  --save_steps ${save_steps} \
+  ${untie_flag}
 
 echo ""
 echo "✓ Model đã lưu tại: ${LORA_DIR}"

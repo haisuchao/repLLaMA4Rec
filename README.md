@@ -406,6 +406,7 @@ Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh
 | `--query-max-len` | số token tối đa của query; tăng khi dùng `context_size` lớn | `128` |
 | `--data-variant` | đọc training data từ `dataset/tevatron/<dataset>-<TAG>/` | rỗng |
 | `--tag` | hậu tố output dir (`output/<dataset>/<model_tag>-<TAG>/`); mặc định lấy từ `--data-variant` | rỗng |
+| `--untie-encoder` | dùng 2 LoRA adapter riêng cho query/passage (untied) thay vì 1 adapter dùng chung (tied) — xem [§10 Untied encoder](#untied-encoder-2-lora-adapter-chia-sẻ-1-backbone) | tắt (tied) |
 
 **`eval.sh`** — Đánh giá model (fine-tuned hoặc base):
 
@@ -426,6 +427,7 @@ Bảng dưới liệt kê các model có thể dùng làm backbone cho `train.sh
 | `--split` | `valid` \| `test` | `test` |
 | `--tag` | hậu tố model dir — khớp với `--tag` khi train | rỗng |
 | `--metric` | metric chọn best checkpoint: `ndcg_5/10/20`, `hr_5/10/20`, `mrr_5/10/20` | `ndcg_10` |
+| `--untie-encoder` | override thủ công; mặc định **tự đọc** từ `train_config.json` của model — chỉ cần chỉ định tay khi checkpoint không có file này | auto-detect |
 
 ### 4.2 Workflow khuyến nghị
 
@@ -454,6 +456,7 @@ source tevatron-env/bin/activate
 ./train.sh beauty --data-variant w3 --tag w3-gs16 \
     --group-size 16                                      # data-variant + output tag riêng
 ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b   # model khác, tag tùy chỉnh
+./train.sh beauty --untie-encoder --tag untied               # 2 LoRA adapter riêng cho query/passage
 
 # ── eval.sh ───────────────────────────────────────────────────
 ./eval.sh beauty                          # best checkpoint → test (ndcg_10)
@@ -466,6 +469,7 @@ source tevatron-env/bin/activate
 ./eval.sh beauty latest --tag aug         # augmented, final model
 ./eval.sh beauty --tag cs5                # history length = 5 items
 ./eval.sh beauty --metric hr_10           # chọn best theo HR@10 thay vì NDCG@10
+./eval.sh beauty --tag untied             # untie_encoder tự đọc từ train_config.json, không cần chỉ định lại
 
 ./eval.sh beauty checkpoint-1000 \
     --model Qwen/Qwen3-Embedding-0.6B \
@@ -516,6 +520,7 @@ output/beauty/qwen3-embedding-0.6b/
 | `--append_eos_token` | bật | Thêm `tokenizer.eos_token_id` vào cuối mỗi sequence sau tokenize — đảm bảo `last` pooling lấy đúng token EOS của model. EOS khác nhau theo model: Qwen3=`<\|im_end\|>`, LLaMA-3=`<\|eot_id\|>`. **Không được bỏ flag này.** |
 | `--pooling last` | last | Last token pooling — lấy vector của EOS token làm embedding đại diện |
 | `--normalize` | bật | L2-normalize embedding trước khi tính similarity |
+| `--untie_encoder` | tắt (tied) | 2 LoRA adapter riêng cho query/passage, chia sẻ 1 backbone frozen — xem [§10 Untied encoder](#untied-encoder-2-lora-adapter-chia-sẻ-1-backbone) |
 
 **Auto-adjust batch size theo model:**
 
@@ -1245,6 +1250,10 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 - [x] `filter_history.py` + `eval_filter.py` — history filter post-processing (loại history items khỏi FAISS
       results, không cần train lại). Đã chạy đầy đủ trên tất cả model đã eval — cải thiện NDCG@10 +47-87%
       tùy dataset. Xem `experiments.md` §"Kết quả History Filter"
+- [x] `--untie-encoder` (`train.sh`/`eval.sh`) — untied bi-encoder qua PEFT multi-adapter, 2 LoRA adapter
+      riêng cho query/passage chia sẻ 1 backbone frozen duy nhất. Verify bằng chạy thật (train + eval end-to-end)
+      — GPU chỉ tăng ~2.8% so với tied. Xem `§10 Untied encoder` để biết chi tiết cơ chế và một gotcha PEFT đã
+      fix trong lúc implement. Chưa chạy ablation so sánh thật trên dataset đầy đủ.
 
 ### Cần làm
 - [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
@@ -1253,6 +1262,7 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
       retriever evaluation
 - [ ] Tích hợp `--filter-history` trực tiếp vào `eval.sh` thay vì chạy script rời `eval_filter.py`
 - [ ] Kiểm tra lại checkpoint selection theo filtered valid metric (hiện chọn theo unfiltered)
+- [ ] Chạy ablation tied vs. untied encoder (`--untie-encoder`) trên dataset đầy đủ và ghi kết quả
 
 ### Cải tiến tiềm năng
 - [ ] Hard negative mining (BM25 hoặc từ top retrieved items) để cải thiện chất lượng training
@@ -1351,3 +1361,40 @@ Mỗi `checkpoint-N/` sau cleanup chỉ còn `adapter_config.json` + `adapter_mo
 > **Lưu ý:** Sau cleanup không thể resume training từ checkpoint đó nữa. Đây là trade-off chấp nhận được vì workflow luôn là train từ đầu.
 >
 > Để revert về bản gốc Tevatron: `cd tevatron && git checkout src/tevatron/retriever/driver/train.py`
+
+### Untied encoder (2 LoRA adapter chia sẻ 1 backbone)
+
+**Bối cảnh:** repLLaMA/FADE mặc định dùng **tied encoder** — query và passage được encode bởi đúng cùng 1
+backbone + cùng 1 bộ LoRA adapter (`f_θ` dùng chung). Đây là lựa chọn của RepLLaMA gốc, nhưng SR có tính bất
+đối xứng (query = nhiều item ghép lại, document = 1 item) mà DPR/RepLLaMA không có — liệu tied encoder có còn
+tối ưu trong tình huống này chưa từng được kiểm chứng. Tevatron vốn có tham số `untie_encoder` nhưng **chỉ
+tồn tại ở code JAX cũ và ví dụ RepLLaMA gốc, không hoạt động ở path torch/DeepSpeed mà project này dùng** —
+đã tự implement lại từ đầu cho path đó (`tevatron/src/tevatron/retriever/modeling/encoder.py` + `dense.py`).
+
+**Cơ chế:** thay vì load 2 bản sao backbone riêng (tốn gấp đôi VRAM backbone — ví dụ +8GB với Qwen3-Embedding-4B),
+dùng **PEFT multi-adapter**: 1 backbone frozen duy nhất, 2 bộ LoRA adapter riêng (`query`/`passage`) gắn lên
+cùng backbone đó. `encode_query()`/`encode_passage()` gọi `model.set_adapter(...)` để chuyển adapter active
+trước mỗi forward pass. Đã đo thực tế trên Qwen3-Embedding-0.6B: GPU peak (forward+backward) tăng từ 1378MB
+(tied) lên 1417MB (untied) — **chỉ +2.8%**, so với +1.2GB (~87%) nếu load 2 bản backbone riêng.
+
+**Gotcha PEFT đã fix:** `PeftModel.set_adapter(name)` tự động tắt `requires_grad` của MỌI adapter không phải
+`name` mỗi lần gọi (hành vi tài liệu hóa của PEFT, không phải bug). Vì `forward()` gọi
+`encode_query()` rồi `encode_passage()` tuần tự trong cùng 1 bước train, adapter `query` bị tắt gradient ngay
+trước khi `backward()` chạy — nếu không fix, **adapter query sẽ không bao giờ được cập nhật**, mô hình untied
+thực chất chỉ train được nửa passage, sai âm thầm không báo lỗi. Đã fix trong `EncoderModel.forward()`: sau khi
+cả 2 forward pass xong, chủ động bật lại `requires_grad=True` cho tất cả tham số LoRA (`_mark_all_lora_adapters_trainable()`)
+trước khi trả về loss.
+
+**Cách dùng:**
+```bash
+./train.sh beauty --untie-encoder --tag untied
+./eval.sh beauty --tag untied     # tự đọc untie_encoder từ train_config.json, không cần chỉ định lại
+```
+
+**Cấu trúc checkpoint khác với tied:** thay vì `adapter_model.safetensors` ở gốc, untied lưu 2 subfolder
+riêng — `checkpoint-N/query/` và `checkpoint-N/passage/` (áp dụng cho cả checkpoint trung gian lẫn thư mục
+gốc cuối cùng). `CheckpointCleanupCallback` không đụng vào 2 subfolder này nên không ảnh hưởng.
+
+**Trạng thái:** đã verify bằng smoke test (build/forward/backward/save/load round-trip) và bằng 1 lượt
+train+eval thật qua `train.sh`/`eval.sh` (dữ liệu nhỏ, dọn sau khi test) — **chưa chạy ablation so sánh thật
+trên dataset đầy đủ**, xem `§9 Cần làm`.

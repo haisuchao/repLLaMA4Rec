@@ -23,6 +23,9 @@
 #   --data-variant VARIANT: tag dữ liệu để đọc corpus/qrels (ví dụ: v2, v2-aug)
 #                           mặc định: trùng với --tag (nếu không chỉ định)
 #   --v2-format           : dùng empty query/passage prefix (cho v2 instruction format)
+#   --untie-encoder       : model được train với 2 LoRA adapter riêng (query/passage)
+#                           mặc định: auto-detect từ train_config.json — chỉ cần chỉ
+#                           định tay khi eval checkpoint không có train_config.json
 #
 # Output:
 #   best   mode → eval_<split>_best.txt    (dùng bởi show_results.py)
@@ -55,7 +58,7 @@ if [ -z "$1" ]; then
   echo "Lỗi: Bạn chưa nhập tên dataset!"
   echo "Cách sử dụng: ./eval.sh <dataset> [checkpoint] [--model MODEL] [--split SPLIT] [--tag TAG] [--metric METRIC]"
   echo ""
-  echo "  dataset          : beauty | sports | ml-1m | steam  (bắt buộc)"
+  echo "  dataset          : beauty | sports | toys | ml-1m | steam  (bắt buộc)"
   echo "  checkpoint       : best (mặc định) | latest | base | checkpoint-N"
   echo "  --model MODEL    : HuggingFace model ID (mặc định: Qwen/Qwen3-Embedding-0.6B)"
   echo "  --split SPLIT    : valid | test  (mặc định: test)"
@@ -74,6 +77,7 @@ if [ -z "$1" ]; then
   echo "  ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag aug"
   echo "  ./eval.sh beauty --tag v2 --data-variant v2 --v2-format"
   echo "  ./eval.sh beauty --tag v2-aug --data-variant v2-aug --v2-format"
+  echo "  ./eval.sh beauty --tag untied   # untie_encoder auto-detect từ train_config.json"
   exit 1
 fi
 
@@ -96,6 +100,7 @@ retrieval_depth=100
 data_variant=""
 v2_format=false
 query_max_len=""    # empty = auto-read từ train_config.json (fallback 128)
+untie_encoder=""    # empty = auto-read từ train_config.json (fallback false)
 
 # Parse named flags
 while [[ $# -gt 0 ]]; do
@@ -108,12 +113,13 @@ while [[ $# -gt 0 ]]; do
     --query-max-len)    query_max_len="$2";    shift 2 ;;
     --data-variant)     data_variant="$2";     shift 2 ;;
     --v2-format)        v2_format=true;        shift ;;
+    --untie-encoder)    untie_encoder=true;    shift ;;
     *) echo "Lỗi: Tham số không hợp lệ '$1'"; echo "Chạy ./eval.sh để xem hướng dẫn."; exit 1 ;;
   esac
 done
 
 case "$dataset" in
-  beauty|sports|ml-1m|steam) ;;
+  beauty|sports|toys|ml-1m|steam) ;;
   *) echo "Lỗi: Dataset '${dataset}' không hợp lệ!"; exit 1 ;;
 esac
 case "$split" in
@@ -175,6 +181,17 @@ if [ -z "${query_max_len}" ]; then
   fi
 fi
 
+# Auto-detect untie_encoder: đọc từ train_config.json nếu user không chỉ định tay.
+# Quan trọng khi eval "best" sweep nhiều checkpoint — phải khớp đúng cách model đã train.
+if [ -z "${untie_encoder}" ]; then
+  cfg="${LORA_BASE}/train_config.json"
+  if [ -f "${cfg}" ]; then
+    untie_encoder=$(python -c "import json; print(str(json.load(open('${cfg}')).get('untie_encoder', False)).lower())" 2>/dev/null || echo "false")
+  else
+    untie_encoder=false
+  fi
+fi
+
 echo "════════════════════════════════════════════════"
 echo "  Evaluate repLLaMA"
 echo "════════════════════════════════════════════════"
@@ -188,6 +205,7 @@ echo "  Depth      : ${retrieval_depth}"
 echo "  Query len  : ${query_max_len}"
 [ -n "${data_variant}" ]    && echo "  Data dir   : ${DATA_DIR}"
 [ "${v2_format}" = "true" ] && echo "  Format     : v2 (empty query/passage prefix)"
+[ "${untie_encoder}" = "true" ] && echo "  Untie      : yes (2 LoRA adapter riêng cho query/passage)"
 echo "════════════════════════════════════════════════"
 echo ""
 
@@ -198,6 +216,16 @@ if [ "${checkpoint}" != "base" ] && [ ! -d "${LORA_BASE}" ]; then
 fi
 
 mkdir -p "${EMB_DIR}/corpus" "${EMB_DIR}/queries" "${RESULTS_DIR}"
+
+# ── Helper: kiểm tra 1 thư mục có chứa LoRA adapter weights hay không ─────────
+# Hỗ trợ cả layout tied (adapter_model.* ngay ở root) lẫn untied
+# (adapter_model.* nằm trong subfolder query/ — passage/ luôn đi kèm query/).
+
+has_adapter() {
+  local dir="$1"
+  [ -f "${dir}/adapter_model.safetensors" ] || [ -f "${dir}/adapter_model.bin" ] || \
+  [ -f "${dir}/query/adapter_model.safetensors" ] || [ -f "${dir}/query/adapter_model.bin" ]
+}
 
 # ── Helper: build qrels từ jsonl (idempotent) ─────────────────────────────────
 
@@ -255,6 +283,7 @@ eval_ckpt() {
   local lora_opts=""
   if [ "${USE_LORA}" = "true" ]; then
     lora_opts="--lora --lora_name_or_path ${ckpt_dir}"
+    [ "${untie_encoder}" = "true" ] && lora_opts="${lora_opts} --untie_encoder"
   fi
 
   # 1. Encode corpus (cache per label)
@@ -354,8 +383,7 @@ if [ "${checkpoint}" = "best" ]; then
   for d in $(ls -d ${LORA_BASE}/checkpoint-* 2>/dev/null | sort -V); do
     CHECKPOINTS+=("$d")
   done
-  if [ -f "${LORA_BASE}/adapter_model.safetensors" ] || \
-     [ -f "${LORA_BASE}/adapter_model.bin" ]; then
+  if has_adapter "${LORA_BASE}"; then
     CHECKPOINTS+=("${LORA_BASE}")
   fi
 
@@ -441,8 +469,7 @@ else
   if [ "${checkpoint}" = "latest" ]; then
     CKPT_DIR="${LORA_BASE}"
     LABEL="latest"
-    if [ ! -f "${LORA_BASE}/adapter_model.safetensors" ] && \
-       [ ! -f "${LORA_BASE}/adapter_model.bin" ]; then
+    if ! has_adapter "${LORA_BASE}"; then
       echo "Lỗi: Không tìm thấy adapter weights tại ${LORA_BASE}"
       echo "Hãy chạy ./train.sh ${dataset} trước."
       exit 1
@@ -456,7 +483,7 @@ else
       echo "Các checkpoint hiện có:"
       ls -d ${LORA_BASE}/checkpoint-* 2>/dev/null | sort -V | \
         while read d; do echo "  $(basename $d)"; done
-      [ -f "${LORA_BASE}/adapter_model.safetensors" ] && echo "  latest"
+      has_adapter "${LORA_BASE}" && echo "  latest"
       exit 1
     fi
   fi
