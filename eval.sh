@@ -142,9 +142,6 @@ SELECTION_METRIC="${metric}"
 
 MODEL_TAG=$(basename "${model}" | tr '[:upper:]' '[:lower:]')
 
-# data_variant mặc định theo tag nếu không chỉ định
-[ -z "${data_variant}" ] && data_variant="${tag}"
-
 # v2 format: instruction-based query → empty prefix
 if [ "${v2_format}" = "true" ]; then
   QUERY_PREFIX=""
@@ -164,6 +161,21 @@ else
 fi
 
 LORA_BASE="./output/${dataset}/${MODEL_TAG}"
+
+# data_variant: ưu tiên đọc từ train_config.json (chính xác 100% — kể cả khi RỖNG,
+# ví dụ context_size=3 mặc định không có hậu tố thư mục). Chỉ fallback về tag khi
+# không có train_config.json (model cũ train trước khi field này tồn tại) — đây chỉ
+# là suy đoán, sẽ sai nếu tag khác tên thư mục data (ví dụ tag "cs3-gs32" nhưng data
+# thật là thư mục trơn "beauty", không phải "beauty-cs3-gs32").
+if [ -z "${data_variant}" ]; then
+  cfg="${LORA_BASE}/train_config.json"
+  if [ -f "${cfg}" ]; then
+    data_variant=$(python -c "import json; print(json.load(open('${cfg}')).get('data_variant', ''))" 2>/dev/null)
+  else
+    data_variant="${tag}"
+  fi
+fi
+
 DATA_DIR="dataset/dataset/tevatron/${dataset}${data_variant:+-${data_variant}}"
 EMB_DIR="${LORA_BASE}/embeddings"
 RESULTS_DIR="${EMB_DIR}/results"
