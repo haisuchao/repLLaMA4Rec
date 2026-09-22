@@ -1,0 +1,3 @@
+
+Best checkpoint : qwen3-embedding-0.6b
+Selection metric: ndcg_10 (valid) = 0.0125

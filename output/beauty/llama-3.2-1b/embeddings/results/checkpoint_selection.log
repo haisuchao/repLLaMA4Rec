@@ -1,0 +1,7 @@
+checkpoint                      ndcg_10
+checkpoint-500                  0.0289
+checkpoint-1000                 0.0307
+checkpoint-1500                 0.0336
+checkpoint-2000                 0.0327
+checkpoint-2097                 0.0327
+llama-3.2-1b                    0.0327

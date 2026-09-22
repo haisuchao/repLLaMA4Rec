@@ -1,0 +1,3 @@
+checkpoint                      ndcg_10
+checkpoint-567                  0.0393
+qwen3-embedding-0.6b-cs5-gs32   0.0393

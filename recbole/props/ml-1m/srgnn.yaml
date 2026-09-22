@@ -1,0 +1,58 @@
+# ============================================================
+# Auto-generated SRGNN config for: ml-1m (dataset/eval settings copied from sasrec.yaml for fair comparison)
+# ============================================================
+# Dataset stats:
+#   Users        : 6040
+#   Items        : 3416
+#   Interactions : 999611
+#   Sparsity     : 0.9516
+#   Seq len      : avg=165.5, max=2277
+#
+# Key difference vs Tevatron:
+#   RecBole uses up to MAX_ITEM_LIST_LENGTH=200 most recent items
+#   Tevatron uses only 3 most recent items as query
+# ============================================================
+
+data_path: dataset/recbole
+dataset: ml-1m
+
+# ── Dataset fields ───────────────────────────────────────────
+# Phải load timestamp để RecBole sort theo thứ tự thời gian (order: TO)
+TIME_FIELD: timestamp
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+# ── Model ────────────────────────────────────────────────────
+model: SRGNN
+embedding_size: 64
+step: 1
+loss_type: CE
+train_neg_sample_args: ~  # CE loss tự xử lý negatives nội bộ
+
+# Capped tại 200 để nhất quán với SASRec/RecBole baseline khác (tránh OOM ở model attention-based)
+# Dataset max seq len = 2277
+MAX_ITEM_LIST_LENGTH: 200
+
+# ── Training ─────────────────────────────────────────────────
+epochs: 200
+train_batch_size: 256
+eval_batch_size: 512
+learner: adam
+learning_rate: 0.001
+weight_decay: 0.0
+stopping_step: 10          # early stopping
+
+# ── Evaluation ───────────────────────────────────────────────
+# Leave-one-out split giống SASRec paper và cách chia của Tevatron:
+#   item cuối    → test target
+#   item áp chót → valid target
+#   phần còn lại → train
+eval_args:
+  split: {LS: valid_and_test}
+  group_by: user
+  order: TO                  # Time Order — bắt buộc với sequential models
+  mode: full                 # Rank trên toàn bộ 3416 items
+
+metrics: [Recall, NDCG, MRR, Hit]
+topk: [5, 10, 20]
+valid_metric: NDCG@10

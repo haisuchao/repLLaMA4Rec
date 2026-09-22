@@ -70,44 +70,38 @@ Chia theo dataset để mỗi máy chỉ cần export/preprocess 1 dataset, gi�
 > → train/eval chậm hơn rõ rệt. Toàn bộ kế hoạch dưới đây dùng **v1** (`export_tevatron.py`, không phải
 > `export_tevatron_v2.py`). Chi tiết so sánh: `paper_report.md` §1.4 và §8.
 
-### Máy A — Sports (ưu tiên cao nhất, đang thiếu nhiều nhất)
+> **Cập nhật 2026-07-24**: Sports augmentation (`cs5-aug-gs32` + ablation `cs5-gs32-0.6b`) đã chạy xong —
+> KHÔNG cần lặp lại. ML-1M 4B cũng đã có kết quả đầy đủ.
+> **Cập nhật 2026-07-26**: SASRec đã train xong cả 3 dataset (Beauty/Sports/ML-1M) — KHÔNG cần lặp lại.
+> GRU4Rec và SRGNN cũng đã xong cả 3 dataset. Baseline RecBole coi như hoàn tất. Còn lại: 4B Sports, 4B Beauty.
+
+### Máy A — Sports: model scale 4B
 
 ```bash
 source tevatron-env/bin/activate
 cd dataset && python run_all.py sports && cd ..
 
-# (1) SASRec baseline — không cần GPU mạnh, CPU cũng chạy được nhưng chậm hơn
-python run_recbole.py SASRec sports
-# → sau khi train xong, lấy epoch tốt nhất và chạy eval-only để có test result:
-# python run_recbole.py eval recbole/output/saved/SASRec-<timestamp>.pth
-
-# (2) Augmentation cho Sports (v1, title-only)
-cd dataset && python export_tevatron.py sports --augment && cd ..
-./train.sh sports --data-variant aug --tag aug
-./eval.sh sports --tag aug
-
-# (3) Augmentation + group_size cao hơn — pattern đã thành công ở Beauty (aug-5: gs8→NDCG@10 0.0372→0.0390
-# raw; sau đó v2-cs5-aug-gs20 dùng gs20 để đẩy thêm). Thử gs20/32 trên v1 Sports thay vì đổi format:
-./train.sh sports --data-variant aug --tag aug-gs20 --group-size 20
-./eval.sh sports --tag aug-gs20
-./train.sh sports --data-variant aug --tag aug-gs32 --group-size 32
-./eval.sh sports --tag aug-gs32
+# Model scale 4B cho Sports — LƯU Ý: lần chạy trước tag "cs5-gs50-4b" bị nhầm, train_config.json ghi
+# model=0.6B (không phải 4B) và không có checkpoint nào được lưu. Đảm bảo dùng đúng --model:
+nvidia-smi --query-gpu=memory.total --format=csv   # kiểm tra VRAM trước khi chạy
+./train.sh sports --model Qwen/Qwen3-Embedding-4B --data-variant cs5-aug --tag cs5-aug-gs32-4b --group-size 32
+./eval.sh sports --model Qwen/Qwen3-Embedding-4B --tag cs5-aug-gs32-4b --data-variant cs5-aug
+# Sau khi train xong, xác nhận checkpoint thật sự tồn tại trước khi coi là thành công (xem checklist §5):
+ls -la output/sports/qwen3-embedding-4b-cs5-aug-gs32-4b/checkpoint-*/adapter_model.safetensors
 ```
 
-### Máy B — Model scale lớn hơn cho ML-1M + double-check ablation Beauty (v1)
+### Máy B — (tuỳ chọn) hoàn tất `cs5-gs50-0.6b` cho Sports
 
 ```bash
 source tevatron-env/bin/activate
-cd dataset && python run_all.py ml-1m && cd ..
+cd dataset && python run_all.py sports && cd ..
 
-# ML-1M đã có augmentation tốt (cs5-gs50-aug) — máy này ưu tiên chạy 4B thay vì thêm thực nghiệm format
-./train.sh ml-1m --model Qwen/Qwen3-Embedding-4B --tag 4b
-./eval.sh ml-1m --model Qwen/Qwen3-Embedding-4B --tag 4b
-
-# Tùy chọn: double-check ablation augmentation Beauty bằng aug-3 (đã có sẵn, không cần chạy lại) — chỉ cần
-# chạy filter nếu chưa có, không cần train:
-cd /path/to/repLLaMA
-python eval_filter.py beauty --tag aug-3 --filter-mode full
+# Job cũ dừng ở checkpoint-2000 (không có model cuối) — chỉ cần chạy nếu muốn thêm điểm so sánh group_size=50
+# (cs5-aug-gs32/cs5-gs32-0.6b ở gs=32 đã đủ cho ablation chính, mục này không bắt buộc)
+./train.sh sports --data-variant cs5-aug --tag cs5-aug-gs50 --group-size 50
+./eval.sh sports --tag cs5-aug-gs50
+./train.sh sports --data-variant cs5 --tag cs5-gs50-retry --group-size 50   # KHÔNG augmentation, đối chứng
+./eval.sh sports --tag cs5-gs50-retry
 ```
 
 ### Máy C — Model scale lớn hơn (4B), cần VRAM cao nếu có
@@ -122,14 +116,10 @@ nvidia-smi --query-gpu=memory.total --format=csv   # kiểm tra VRAM trước kh
 ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b
 ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b
 
-# Nếu máy có VRAM > 12GB, có thể thử group-size cao hơn để so sánh công bằng với best 0.6B (gs20):
-./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b-gs20 --group-size 20
+# Nếu máy có VRAM > 12GB, có thể thử group-size cao hơn để so sánh công bằng với best 0.6B (gs8):
+./train.sh beauty --model Qwen/Qwen3-Embedding-4B --tag 4b-aug --data-variant aug-3 --group-size 8
 
-# (5) Sau khi (4) thành công, lặp lại cho Sports/ML-1M nếu còn thời gian GPU
-./train.sh sports --model Qwen/Qwen3-Embedding-4B --tag 4b
-./eval.sh sports --model Qwen/Qwen3-Embedding-4B --tag 4b
-./train.sh ml-1m --model Qwen/Qwen3-Embedding-4B --tag 4b
-./eval.sh ml-1m --model Qwen/Qwen3-Embedding-4B --tag 4b
+# ML-1M 4B đã có kết quả (cs5-gs50-aug-4b) — KHÔNG cần chạy lại. Sports 4B đã chuyển sang Máy A ở §3.
 ```
 
 > **Lưu ý VRAM 4B**: README ghi nhận batch=1, accum=32 vẫn "sát giới hạn 12GB" trên RTX 3060. Nếu máy mới
@@ -152,8 +142,8 @@ rsync -avz --include='*/' \
   --exclude='*' \
   user@may-A:/path/to/repLLaMA/output/sports/ ./output/sports/
 
-# Với RecBole (SASRec), chỉ cần log + checkpoint nhỏ (.pth thường vài MB, có thể copy nguyên):
-rsync -avz user@may-A:/path/to/repLLaMA/recbole/output/saved/SASRec-*.pth ./recbole/output/saved/
+# Với RecBole (SASRec/GRU4Rec/SRGNN), chỉ cần log + checkpoint nhỏ (.pth thường vài-15MB, copy nguyên):
+rsync -avz user@may-A:/path/to/repLLaMA/recbole/output/saved/SRGNN-*.pth ./recbole/output/saved/
 rsync -avz user@may-A:/path/to/repLLaMA/recbole/output/log/ ./recbole/output/log/
 ```
 
@@ -165,12 +155,11 @@ python show_results.py --update-experiments     # refresh bảng auto trong expe
 
 # Nếu có history filter cần chạy lại cho model mới (không cần GPU, chỉ cần rank_clean.trec + qrels_clean.txt
 # đã đồng bộ về):
-python eval_filter.py sports --tag aug --filter-mode full
-python eval_filter.py sports --tag aug-gs20 --filter-mode full
-python eval_filter.py sports --tag aug-gs32 --filter-mode full
+python eval_filter.py sports --tag cs5-aug-gs32-4b --filter-mode full   # sau khi có 4B Sports
 
-# Với SASRec mới train (ví dụ Sports):
-python run_recbole.py eval recbole/output/saved/SASRec-<timestamp-sports>.pth
+# run_recbole.py đã fix bug weights_only (2026-07-25) — train xong sẽ tự in "test result", không cần chạy
+# eval-only riêng nữa. Chỉ dùng eval-only khi muốn re-check checkpoint cũ đã có sẵn:
+python run_recbole.py eval recbole/output/saved/SRGNN-<timestamp>.pth
 ```
 
 Cuối cùng, cập nhật thủ công các bảng trong `paper_report.md` với số liệu mới — các dòng "N/A — chưa chạy"

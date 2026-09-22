@@ -1,6 +1,6 @@
 # Kết quả thực nghiệm
 
-> Cập nhật lần cuối: 2026-07-14
+> Cập nhật lần cuối: 2026-07-24
 >
 > **Ký hiệu trạng thái:** ✅ Hoàn thành · ⏳ Đang chạy / chưa eval · ❌ Thất bại
 
@@ -13,43 +13,46 @@
 <!-- RESULTS_START -->
 ### BEAUTY
 
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| [Qwen3-Embedding-0.6B · bm25](#exp-beauty-qwen3-embedding-0.6b-bm25) | 0.0166 | 0.0255 | 0.0209 | 0.0388 | 0.0269 | 0.0626 | 0.0154 |
-| [Qwen3-Embedding-0.6B · cs10-gs32](#exp-beauty-qwen3-embedding-0.6b-cs10-gs32) | 0.0233 | 0.0453 | 0.0356 | 0.0835 | 0.0469 | 0.1287 | 0.0211 |
-| [Qwen3-Embedding-0.6B · cs5-gs50-ep5](#exp-beauty-qwen3-embedding-0.6b-cs5-gs50-ep5) | 0.0225 | 0.0439 | 0.0346 | 0.0813 | 0.0463 | 0.1279 | 0.0205 |
-| [Qwen3-Embedding-0.6B · ep10-gs50](#exp-beauty-qwen3-embedding-0.6b-ep10-gs50) | 0.0234 | 0.0445 | 0.0350 | 0.0807 | 0.0466 | 0.1268 | 0.0212 |
-| [Qwen3-Embedding-0.6B · gs16](#exp-beauty-qwen3-embedding-0.6b-gs16) | 0.0226 | 0.0434 | 0.0344 | 0.0803 | 0.0456 | 0.1244 | 0.0206 |
-| [Qwen3-Embedding-0.6B · gs32](#exp-beauty-qwen3-embedding-0.6b-gs32) | 0.0234 | 0.0450 | 0.0360 | 0.0840 | 0.0473 | 0.1288 | 0.0215 |
-| [Qwen3-Embedding-0.6B · gs8](#exp-beauty-qwen3-embedding-0.6b-gs8) | 0.0217 | 0.0426 | 0.0329 | 0.0775 | 0.0434 | 0.1189 | 0.0195 |
-| [Qwen3-Embedding-0.6B · v2-cs5-aug](#exp-beauty-qwen3-embedding-0.6b-v2-cs5-aug) | 0.0268 | 0.0501 | 0.0383 | 0.0858 | 0.0507 | 0.1350 | 0.0239 |
-| [Qwen3-Embedding-0.6B · v2-cs5-aug-gs20](#exp-beauty-qwen3-embedding-0.6b-v2-cs5-aug-gs20) | 0.0274 | 0.0509 | 0.0405 | 0.0919 | 0.0536 | 0.1439 | 0.0251 |
-| [Qwen3-Embedding-0.6B · v2-gs32](#exp-beauty-qwen3-embedding-0.6b-v2-gs32) | 0.0112 | 0.0219 | 0.0178 | 0.0421 | 0.0239 | 0.0664 | 0.0104 |
-| [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0313 | 0.0736 | 0.0416 | 0.1148 | 0.0185 |
-| [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0015 | 0.0030 | 0.0020 | 0.0048 | 0.0011 |
-| [qwen3-1.7b · zero-shot](#exp-beauty-qwen3-1.7b-zeroshot) | 0.0005 | 0.0007 | 0.0005 | 0.0009 | 0.0006 | 0.0013 | 0.0004 |
-| [qwen3-embedding-0.6b](#exp-beauty-qwen3-embedding-0.6b) | 0.0251 | 0.0485 | 0.0372 | 0.0861 | 0.0487 | 0.1318 | 0.0224 |
-| [qwen3-embedding-0.6b-aug-3](#exp-beauty-qwen3-embedding-0.6b-aug-3) | 0.0263 | 0.0498 | 0.0378 | 0.0856 | 0.0498 | 0.1333 | 0.0233 |
-| [qwen3-embedding-0.6b-aug-5](#exp-beauty-qwen3-embedding-0.6b-aug-5) | 0.0264 | 0.0509 | 0.0390 | 0.0905 | 0.0517 | 0.1409 | 0.0235 |
-| [qwen3-embedding-0.6b-aug-5-ep-1-lor-32](#exp-beauty-qwen3-embedding-0.6b-aug-5-ep-1-lor-32) | 0.0251 | 0.0475 | 0.0365 | 0.0830 | 0.0478 | 0.1278 | 0.0224 |
-| [qwen3-embedding-0.6b · zero-shot](#exp-beauty-qwen3-embedding-0.6b-zeroshot) | 0.0092 | 0.0182 | 0.0135 | 0.0315 | 0.0179 | 0.0488 | 0.0081 |
+| Model | NDCG@5 | HR@5 | MRR@5 | NDCG@10 | HR@10 | MRR@10 | NDCG@20 | HR@20 | MRR@20 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [Qwen3-Embedding-0.6B · bm25](#exp-beauty-qwen3-embedding-0.6b-bm25) | 0.0166 | 0.0255 | 0.0137 | 0.0209 | 0.0388 | 0.0154 | 0.0269 | 0.0626 | 0.0170 |
+| [Qwen3-Embedding-0.6B · cs10-gs32](#exp-beauty-qwen3-embedding-0.6b-cs10-gs32) | 0.0233 | 0.0453 | 0.0161 | 0.0356 | 0.0835 | 0.0211 | 0.0469 | 0.1287 | 0.0242 |
+| [Qwen3-Embedding-0.6B · cs5-gs50-ep5](#exp-beauty-qwen3-embedding-0.6b-cs5-gs50-ep5) | 0.0225 | 0.0439 | 0.0156 | 0.0346 | 0.0813 | 0.0205 | 0.0463 | 0.1279 | 0.0237 |
+| [Qwen3-Embedding-0.6B · ep10-gs50](#exp-beauty-qwen3-embedding-0.6b-ep10-gs50) | 0.0234 | 0.0445 | 0.0165 | 0.0350 | 0.0807 | 0.0212 | 0.0466 | 0.1268 | 0.0244 |
+| [Qwen3-Embedding-0.6B · gs16](#exp-beauty-qwen3-embedding-0.6b-gs16) | 0.0226 | 0.0434 | 0.0158 | 0.0344 | 0.0803 | 0.0206 | 0.0456 | 0.1244 | 0.0237 |
+| [Qwen3-Embedding-0.6B · gs32](#exp-beauty-qwen3-embedding-0.6b-gs32) | 0.0234 | 0.0450 | 0.0164 | 0.0360 | 0.0840 | 0.0215 | 0.0473 | 0.1288 | 0.0246 |
+| [Qwen3-Embedding-0.6B · gs8](#exp-beauty-qwen3-embedding-0.6b-gs8) | 0.0217 | 0.0426 | 0.0149 | 0.0329 | 0.0775 | 0.0195 | 0.0434 | 0.1189 | 0.0223 |
+| [Qwen3-Embedding-0.6B · v2-cs5-aug](#exp-beauty-qwen3-embedding-0.6b-v2-cs5-aug) | 0.0268 | 0.0501 | 0.0192 | 0.0383 | 0.0858 | 0.0239 | 0.0507 | 0.1350 | 0.0273 |
+| [Qwen3-Embedding-0.6B · v2-cs5-aug-gs20](#exp-beauty-qwen3-embedding-0.6b-v2-cs5-aug-gs20) | 0.0274 | 0.0509 | 0.0197 | 0.0405 | 0.0919 | 0.0251 | 0.0536 | 0.1439 | 0.0286 |
+| [Qwen3-Embedding-0.6B · v2-gs32](#exp-beauty-qwen3-embedding-0.6b-v2-gs32) | 0.0112 | 0.0219 | 0.0077 | 0.0178 | 0.0421 | 0.0104 | 0.0239 | 0.0664 | 0.0121 |
+| [llama-3.2-1b](#exp-beauty-llama-3.2-1b) | 0.0209 | 0.0414 | 0.0142 | 0.0313 | 0.0736 | 0.0185 | 0.0416 | 0.1148 | 0.0213 |
+| [llama-3.2-1b · zero-shot](#exp-beauty-llama-3.2-1b-zeroshot) | 0.0012 | 0.0021 | 0.0010 | 0.0015 | 0.0030 | 0.0011 | 0.0020 | 0.0048 | 0.0012 |
+| [qwen3-1.7b · zero-shot](#exp-beauty-qwen3-1.7b-zeroshot) | 0.0005 | 0.0007 | 0.0004 | 0.0005 | 0.0009 | 0.0004 | 0.0006 | 0.0013 | 0.0004 |
+| [qwen3-embedding-0.6b](#exp-beauty-qwen3-embedding-0.6b) | 0.0251 | 0.0485 | 0.0174 | 0.0372 | 0.0861 | 0.0224 | 0.0487 | 0.1318 | 0.0256 |
+| [qwen3-embedding-0.6b-aug-3](#exp-beauty-qwen3-embedding-0.6b-aug-3) | 0.0263 | 0.0498 | 0.0186 | 0.0378 | 0.0856 | 0.0233 | 0.0498 | 0.1333 | 0.0266 |
+| [qwen3-embedding-0.6b-aug-5](#exp-beauty-qwen3-embedding-0.6b-aug-5) | 0.0264 | 0.0509 | 0.0184 | 0.0390 | 0.0905 | 0.0235 | 0.0517 | 0.1409 | 0.0270 |
+| [qwen3-embedding-0.6b-aug-5-ep-1-lor-32](#exp-beauty-qwen3-embedding-0.6b-aug-5-ep-1-lor-32) | 0.0251 | 0.0475 | 0.0178 | 0.0365 | 0.0830 | 0.0224 | 0.0478 | 0.1278 | 0.0255 |
+| [qwen3-embedding-0.6b · zero-shot](#exp-beauty-qwen3-embedding-0.6b-zeroshot) | 0.0092 | 0.0182 | 0.0063 | 0.0135 | 0.0315 | 0.0081 | 0.0179 | 0.0488 | 0.0092 |
 
 ### SPORTS
 
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| [llama-3.2-1b · zero-shot](#exp-sports-llama-3.2-1b-zeroshot) | 0.0005 | 0.0008 | 0.0006 | 0.0013 | 0.0009 | 0.0023 | 0.0004 |
-| [qwen3-embedding-0.6b · zero-shot](#exp-sports-qwen3-embedding-0.6b-zeroshot) | 0.0045 | 0.0090 | 0.0071 | 0.0170 | 0.0100 | 0.0289 | 0.0041 |
+| Model | NDCG@5 | HR@5 | MRR@5 | NDCG@10 | HR@10 | MRR@10 | NDCG@20 | HR@20 | MRR@20 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [Qwen3-Embedding-0.6B · cs5-aug-gs32](#exp-sports-qwen3-embedding-0.6b-cs5-aug-gs32) | 0.0180 | 0.0325 | 0.0133 | 0.0260 | 0.0574 | 0.0166 | 0.0345 | 0.0912 | 0.0189 |
+| [Qwen3-Embedding-0.6B · cs5-gs32-0.6b](#exp-sports-qwen3-embedding-0.6b-cs5-gs32-0.6b) | 0.0125 | 0.0234 | 0.0089 | 0.0189 | 0.0433 | 0.0115 | 0.0263 | 0.0728 | 0.0135 |
+| [llama-3.2-1b · zero-shot](#exp-sports-llama-3.2-1b-zeroshot) | 0.0005 | 0.0008 | 0.0004 | 0.0006 | 0.0013 | 0.0004 | 0.0009 | 0.0023 | 0.0005 |
+| [qwen3-embedding-0.6b · zero-shot](#exp-sports-qwen3-embedding-0.6b-zeroshot) | 0.0045 | 0.0090 | 0.0030 | 0.0071 | 0.0170 | 0.0041 | 0.0100 | 0.0289 | 0.0049 |
 
 ### ML-1M
 
-| Model | NDCG@5 | HR@5 | NDCG@10 | HR@10 | NDCG@20 | HR@20 | MRR@10 |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| [Qwen3-Embedding-0.6B · cs10-gs50](#exp-ml-1m-qwen3-embedding-0.6b-cs10-gs50) | 0.0233 | 0.0455 | 0.0357 | 0.0843 | 0.0505 | 0.1425 | 0.0211 |
-| [Qwen3-Embedding-0.6B · cs20-gs50](#exp-ml-1m-qwen3-embedding-0.6b-cs20-gs50) | 0.0213 | 0.0417 | 0.0328 | 0.0776 | 0.0463 | 0.1313 | 0.0193 |
-| [Qwen3-Embedding-0.6B · cs5-gs32](#exp-ml-1m-qwen3-embedding-0.6b-cs5-gs32) | 0.0249 | 0.0470 | 0.0386 | 0.0897 | 0.0531 | 0.1475 | 0.0232 |
-| [Qwen3-Embedding-0.6B · cs5-gs50-aug](#exp-ml-1m-qwen3-embedding-0.6b-cs5-gs50-aug) | 0.0430 | 0.0762 | 0.0618 | 0.1343 | 0.0821 | 0.2147 | 0.0399 |
-| [qwen3-embedding-0.6b](#exp-ml-1m-qwen3-embedding-0.6b) | 0.0259 | 0.0472 | 0.0396 | 0.0899 | 0.0543 | 0.1485 | 0.0245 |
+| Model | NDCG@5 | HR@5 | MRR@5 | NDCG@10 | HR@10 | MRR@10 | NDCG@20 | HR@20 | MRR@20 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| [Qwen3-Embedding-0.6B · cs10-gs50](#exp-ml-1m-qwen3-embedding-0.6b-cs10-gs50) | 0.0233 | 0.0455 | 0.0161 | 0.0357 | 0.0843 | 0.0211 | 0.0505 | 0.1425 | 0.0252 |
+| [Qwen3-Embedding-0.6B · cs20-gs50](#exp-ml-1m-qwen3-embedding-0.6b-cs20-gs50) | 0.0213 | 0.0417 | 0.0146 | 0.0328 | 0.0776 | 0.0193 | 0.0463 | 0.1313 | 0.0230 |
+| [Qwen3-Embedding-0.6B · cs5-gs32](#exp-ml-1m-qwen3-embedding-0.6b-cs5-gs32) | 0.0249 | 0.0470 | 0.0176 | 0.0386 | 0.0897 | 0.0232 | 0.0531 | 0.1475 | 0.0272 |
+| [Qwen3-Embedding-0.6B · cs5-gs50-aug](#exp-ml-1m-qwen3-embedding-0.6b-cs5-gs50-aug) | 0.0430 | 0.0762 | 0.0322 | 0.0618 | 0.1343 | 0.0399 | 0.0821 | 0.2147 | 0.0455 |
+| [qwen3-embedding-0.6b](#exp-ml-1m-qwen3-embedding-0.6b) | 0.0259 | 0.0472 | 0.0189 | 0.0396 | 0.0899 | 0.0245 | 0.0543 | 0.1485 | 0.0285 |
+| [qwen3-embedding-0.6b · zero-shot](#exp-ml-1m-qwen3-embedding-0.6b-zeroshot) | 0.0044 | 0.0093 | 0.0028 | 0.0068 | 0.0169 | 0.0038 | 0.0093 | 0.0263 | 0.0045 |
 
 <!-- RESULTS_END -->
 
@@ -100,9 +103,16 @@
 
 | Model | cs | NDCG@10 raw | ctx | full | HR@10 raw | ctx | full | Δ NDCG@10 (full) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| qwen3-embedding-0.6b | 3 | 0.0116 | 0.0171 | 0.0173 | 0.0266 | 0.0307 | 0.0309 | +49.1% |
+| qwen3-embedding-0.6b-cs5-aug-gs32 ★ | 5 | 0.0260 | 0.0367 | **0.0371** | 0.0574 | 0.0678 | **0.0684** | +42.7% |
+| qwen3-embedding-0.6b-cs5-gs32-0.6b (no aug, đối chứng) | 5 | 0.0189 | 0.0277 | 0.0279 | 0.0433 | 0.0519 | 0.0523 | +47.6% |
+| qwen3-embedding-0.6b (standard) | 3 | 0.0116 | 0.0171 | 0.0173 | 0.0266 | 0.0307 | 0.0309 | +49.1% |
 | qwen3-embedding-0.6b-zeroshot | 3 | 0.0071 | 0.0101 | 0.0102 | 0.0170 | 0.0194 | 0.0195 | +43.7% |
 | llama-3.2-1b-zeroshot | 3 | 0.0006 | 0.0007 | 0.0007 | 0.0013 | 0.0014 | 0.0014 | +16.7% |
+
+> Cập nhật 2026-07-24: `cs5-aug-gs32` (context=5, augmentation, group_size=32) là best Sports hiện tại, thay
+> `standard` cũ. Cặp `cs5-gs32-0.6b` (không aug) vs `cs5-aug-gs32` (có aug) — giống hệt nhau về context_size
+> và group_size — là ablation augmentation **sạch nhất trong cả 3 dataset**: augmentation đóng góp
+> +37.6% NDCG@10 raw (0.0189→0.0260), lớn hơn hẳn mức đóng góp đo được ở Beauty (+1.6%, cặp `standard`/`aug-3`).
 
 ### ML-1M
 
@@ -117,7 +127,7 @@
 ### Nhận xét
 
 1. **Filter cải thiện mọi model đã fine-tune một cách nhất quán** — full mode: Beauty +47–61% NDCG@10 (trừ bm25/zero-shot yếu),
-   Sports +44–49%, ML-1M +68–87%. Đây là cải thiện lớn hơn hẳn bất kỳ ablation training nào từng thử (aug, group-size, v2 format...).
+   Sports +43–49%, ML-1M +68–87%. Đây là cải thiện lớn hơn hẳn bất kỳ ablation training nào từng thử (aug, group-size, v2 format...).
    ML-1M có gain lớn hơn Beauty/Sports vì avg sequence length dài hơn nhiều (165 vs ~8.5) → "full" filter loại bỏ nhiều candidate hơn tương đối.
 2. **`full` > `ctx` luôn luôn**, đúng như kỳ vọng (full là superset của ctx) — nhưng khoảng cách giữa hai chế độ nhỏ với Beauty/Sports
    (context 3 items ≈ phần lớn signal) và lớn với ML-1M (context 3-20 items chỉ là phần nhỏ của lịch sử 165 items).
@@ -130,6 +140,8 @@
    để phát huy tác dụng, không nên triển khai riêng lẻ.
 5. **Best result tổng thể sau filter**: Beauty `v2-cs5-aug-gs20` full-filtered NDCG@10=**0.0631**, HR@10=**0.1119** (so với
    raw tốt nhất trước đây 0.0390/0.0905 — gần gấp đôi NDCG@10). ML-1M `cs5-gs50-aug` full-filtered đạt HR@10=**0.1887**.
+   Sports `cs5-aug-gs32` full-filtered đạt NDCG@10=**0.0371**, HR@10=**0.0684** — gấp hơn 2× headline cũ (`standard`,
+   0.0173/0.0309) sau khi thêm augmentation + tăng group_size.
 
 ---
 
@@ -606,6 +618,137 @@
 ```bash
 ./train.sh beauty --model Qwen/Qwen3-Embedding-4B --data-variant v2 --tag v2-gs32 --group-size 32
 ./eval.sh beauty --model Qwen/Qwen3-Embedding-4B --tag v2-gs32
+```
+
+---
+
+### SPORTS
+
+<a id="exp-sports-qwen3-embedding-0.6b-cs5-aug-gs32"></a>
+#### Qwen3-Embedding-0.6B · cs5-aug-gs32
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | sports |
+| Data variant | cs5-aug |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-16000 |
+| Selection metric | ndcg_10 (valid) = 0.0306 |
+| Trained at | 2026-07-14T15:52:23+07:00 |
+
+```bash
+./train.sh sports --data-variant cs5-aug --tag cs5-aug-gs32 --group-size 32
+./eval.sh sports --tag cs5-aug-gs32
+```
+
+---
+
+<a id="exp-sports-qwen3-embedding-0.6b-cs5-gs32-0.6b"></a>
+#### Qwen3-Embedding-0.6B · cs5-gs32-0.6b
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | sports |
+| Data variant | cs5 |
+| train_group_size | 32 (1 positive + 31 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Best checkpoint | checkpoint-2000 |
+| Selection metric | ndcg_10 (valid) = 0.0215 |
+| Trained at | 2026-07-22T17:13:49+07:00 |
+
+```bash
+./train.sh sports --data-variant cs5 --tag cs5-gs32-0.6b --group-size 32
+./eval.sh sports --tag cs5-gs32-0.6b
+```
+
+---
+
+<a id="exp-sports-qwen3-embedding-0.6b-cs5-gs50-0.6b"></a>
+#### Qwen3-Embedding-0.6B · cs5-gs50-0.6b
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | sports |
+| Data variant | cs5 |
+| train_group_size | 50 (1 positive + 49 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Trained at | 2026-07-21T12:49:02+07:00 |
+
+```bash
+./train.sh sports --data-variant cs5 --tag cs5-gs50-0.6b --group-size 50
+./eval.sh sports --tag cs5-gs50-0.6b
+```
+
+---
+
+<a id="exp-sports-qwen3-embedding-0.6b-cs5-gs50-4b"></a>
+#### Qwen3-Embedding-0.6B · cs5-gs50-4b
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | sports |
+| Data variant | cs5 |
+| train_group_size | 50 (1 positive + 49 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 128 |
+| Passage max len | 196 |
+| Trained at | 2026-07-21T12:48:35+07:00 |
+
+```bash
+./train.sh sports --data-variant cs5 --tag cs5-gs50-4b --group-size 50
+./eval.sh sports --tag cs5-gs50-4b
+```
+
+---
+
+<a id="exp-sports-qwen3-embedding-0.6b-v2-cs5-aug"></a>
+#### Qwen3-Embedding-0.6B · v2-cs5-aug
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Base model | `Qwen/Qwen3-Embedding-0.6B` |
+| Dataset | sports |
+| Data variant | v2-cs5-aug |
+| train_group_size | 50 (1 positive + 49 negatives) |
+| per_device_batch | 4 |
+| gradient_accumulation | 8 (effective batch = 32) |
+| Learning rate | 1e-4 |
+| Epochs | 3 |
+| Save steps | 1000 |
+| Query max len | 320 |
+| Passage max len | 196 |
+| Trained at | 2026-07-14T15:07:34+07:00 |
+
+```bash
+./train.sh sports --data-variant v2-cs5-aug --group-size 50
+./eval.sh sports --tag v2-cs5-aug
 ```
 
 ---

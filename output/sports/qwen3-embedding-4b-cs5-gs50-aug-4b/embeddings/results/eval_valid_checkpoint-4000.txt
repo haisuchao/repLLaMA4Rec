@@ -1,0 +1,10 @@
+
+ndcg_5              	all	0.0162
+hr_5                	all	0.0301
+mrr_5               	all	0.0117
+ndcg_10             	all	0.0243
+hr_10               	all	0.0553
+mrr_10              	all	0.0149
+ndcg_20             	all	0.0327
+hr_20               	all	0.0889
+mrr_20              	all	0.0172

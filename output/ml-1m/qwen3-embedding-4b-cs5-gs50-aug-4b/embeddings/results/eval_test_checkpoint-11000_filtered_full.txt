@@ -1,0 +1,12 @@
+# Filter mode: full
+# Checkpoint: checkpoint-11000  Split: test
+
+ndcg_5              	all	0.1328
+hr_5                	all	0.1980
+mrr_5               	all	0.1114
+ndcg_10             	all	0.1601
+hr_10               	all	0.2829
+mrr_10              	all	0.1225
+ndcg_20             	all	0.1860
+hr_20               	all	0.3859
+mrr_20              	all	0.1296

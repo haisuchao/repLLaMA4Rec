@@ -8,7 +8,7 @@ Cách dùng:
   model   : tên model RecBole built-in   → truyền string  (ví dụ: SASRec)
           : model custom của bạn          → truyền đường dẫn import module.ClassName
                                             (ví dụ: cmamba4rec.CMamba4Rec)
-  dataset : beauty | sports | ml-1m | steam
+  dataset : beauty | sports | toys | ml-1m | steam
   key=val : override config tùy ý (ví dụ: epochs=50 learning_rate=0.0005)
 
 Ví dụ — train + eval:
@@ -80,7 +80,7 @@ for _old, _builtin in [("float", float), ("int", int), ("bool", bool),
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-VALID_DATASETS  = {"beauty", "sports", "ml-1m", "steam"}
+VALID_DATASETS  = {"beauty", "sports", "toys", "ml-1m", "steam"}
 DATA_PATH       = "dataset/dataset/recbole"   # .inter và .item files
 PROPS_PATH      = "recbole/props"             # YAML config files
 RECBOLE_OUT_DIR = "recbole/output"
@@ -250,11 +250,24 @@ def run_train(model: str, dataset: str, extra: list[str]):
         print(f"  → Loaded custom class: {model_obj}\n")
 
     from recbole.quick_start import run_recbole
-    run_recbole(
-        model=model_obj,
-        config_file_list=config_files,
-        config_dict=config_dict,
-    )
+    import torch
+    import functools
+
+    # PyTorch 2.6 đổi default weights_only=True — trainer.evaluate() ở cuối run_recbole()
+    # tự load lại checkpoint vừa lưu để chấm test set, nhưng checkpoint RecBole chứa cả
+    # config/dataset metadata nên cần weights_only=False (giống patch trong run_eval_only()).
+    # Thiếu patch này, bước test-set evaluation tự động sẽ crash ngay sau khi training xong
+    # (checkpoint vẫn được lưu bình thường trước đó).
+    _orig_load = torch.load
+    torch.load = functools.partial(_orig_load, weights_only=False)
+    try:
+        run_recbole(
+            model=model_obj,
+            config_file_list=config_files,
+            config_dict=config_dict,
+        )
+    finally:
+        torch.load = _orig_load
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

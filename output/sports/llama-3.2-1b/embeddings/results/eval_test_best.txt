@@ -1,0 +1,3 @@
+
+Best checkpoint : checkpoint-500
+Selection metric: ndcg_10 (valid) = 0.0000

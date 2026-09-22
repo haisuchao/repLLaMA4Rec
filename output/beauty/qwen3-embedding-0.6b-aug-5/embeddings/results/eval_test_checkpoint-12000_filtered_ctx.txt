@@ -1,0 +1,12 @@
+# Filter mode: context  context_size=5
+# Checkpoint: checkpoint-12000  Split: test
+
+ndcg_5              	all	0.0491
+hr_5                	all	0.0716
+mrr_5               	all	0.0418
+ndcg_10             	all	0.0605
+hr_10               	all	0.1070
+mrr_10              	all	0.0464
+ndcg_20             	all	0.0717
+hr_20               	all	0.1515
+mrr_20              	all	0.0495

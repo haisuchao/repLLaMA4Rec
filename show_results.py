@@ -31,15 +31,17 @@ from collections import defaultdict
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-METRICS_DISPLAY = ["ndcg_5", "hr_5", "ndcg_10", "hr_10", "ndcg_20", "hr_20", "mrr_10"]
+METRICS_DISPLAY = ["ndcg_5", "hr_5", "mrr_5", "ndcg_10", "hr_10", "mrr_10", "ndcg_20", "hr_20", "mrr_20"]
 METRIC_LABELS   = {
     "ndcg_5":  "NDCG@5",
     "hr_5":    "HR@5",
+    "mrr_5":   "MRR@5",
     "ndcg_10": "NDCG@10",
     "hr_10":   "HR@10",
+    "mrr_10":  "MRR@10",
     "ndcg_20": "NDCG@20",
     "hr_20":   "HR@20",
-    "mrr_10":  "MRR@10",
+    "mrr_20":  "MRR@20",
 }
 DATASET_ORDER = ["beauty", "sports", "ml-1m", "steam"]
 

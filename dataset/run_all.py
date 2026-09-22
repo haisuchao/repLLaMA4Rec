@@ -39,7 +39,7 @@ from export_recbole   import export_recbole
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
-SUPPORTED_DATASETS = ["beauty", "sports", "ml-1m", "steam"]
+SUPPORTED_DATASETS = ["beauty", "sports", "toys", "ml-1m", "steam"]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

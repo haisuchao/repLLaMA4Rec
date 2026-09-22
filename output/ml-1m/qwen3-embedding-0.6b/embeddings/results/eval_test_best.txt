@@ -1,0 +1,13 @@
+ndcg_5              	all	0.0259
+hr_5                	all	0.0472
+mrr_5               	all	0.0189
+ndcg_10             	all	0.0396
+hr_10               	all	0.0899
+mrr_10              	all	0.0245
+ndcg_20             	all	0.0543
+hr_20               	all	0.1485
+mrr_20              	all	0.0285
+
+
+Best checkpoint : qwen3-embedding-0.6b
+Selection metric: mrr_10 (valid) = 0.0247

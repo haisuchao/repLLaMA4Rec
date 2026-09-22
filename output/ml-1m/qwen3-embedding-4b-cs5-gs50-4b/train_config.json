@@ -1,0 +1,15 @@
+{
+  "dataset": "ml-1m",
+  "model": "Qwen/Qwen3-Embedding-4B",
+  "data_variant": "cs5",
+  "tag": "cs5-gs50-4b",
+  "train_group_size": 50,
+  "per_device_batch": 1,
+  "gradient_accumulation": 32,
+  "learning_rate": "1e-4",
+  "epochs": 3,
+  "save_steps": 1000,
+  "query_max_len": 128,
+  "passage_max_len": 196,
+  "timestamp": "2026-07-20T22:03:15+07:00"
+}

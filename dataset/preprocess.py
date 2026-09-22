@@ -65,6 +65,12 @@ DATASETS = {
         "meta_file":   "raw/meta_Sports_and_Outdoors.json.gz",
         "name":        "Amazon Sports",
     },
+    "toys": {
+            "type":        "amazon",
+            "review_file": "raw/reviews_Toys_and_Games_5.json.gz",
+            "meta_file":   "raw/meta_Toys_and_Games.json.gz",
+            "name":        "Amazon Toys",
+        },
     "ml-1m": {
         "type":     "movielens",
         "data_dir": "raw/ml-1m/",

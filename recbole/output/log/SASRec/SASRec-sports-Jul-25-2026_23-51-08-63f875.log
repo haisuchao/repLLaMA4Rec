@@ -1,0 +1,324 @@
+Sat 25 Jul 2026 23:51:08 INFO  ['run_recbole.py', 'SASRec', 'sports']
+Sat 25 Jul 2026 23:51:08 INFO  
+General Hyper Parameters:
+gpu_id = 0
+use_gpu = True
+seed = 2020
+state = INFO
+reproducibility = True
+data_path = dataset/dataset/recbole/sports
+checkpoint_dir = recbole/output/saved
+show_progress = True
+save_dataset = False
+dataset_save_path = None
+save_dataloaders = False
+dataloaders_save_path = None
+log_wandb = False
+
+Training Hyper Parameters:
+epochs = 200
+train_batch_size = 256
+learner = adam
+learning_rate = 0.001
+train_neg_sample_args = {'distribution': 'none', 'sample_num': 'none', 'alpha': 'none', 'dynamic': False, 'candidate_num': 0}
+eval_step = 1
+stopping_step = 10
+clip_grad_norm = None
+weight_decay = 0.0
+loss_decimal_place = 4
+
+Evaluation Hyper Parameters:
+eval_args = {'split': {'LS': 'valid_and_test'}, 'order': 'TO', 'group_by': 'user', 'mode': {'valid': 'full', 'test': 'full'}}
+repeatable = True
+metrics = ['Recall', 'NDCG', 'MRR', 'Hit']
+topk = [5, 10, 20]
+valid_metric = NDCG@10
+valid_metric_bigger = True
+eval_batch_size = 512
+metric_decimal_place = 4
+
+Dataset Hyper Parameters:
+field_separator = 	
+seq_separator =  
+USER_ID_FIELD = user_id
+ITEM_ID_FIELD = item_id
+RATING_FIELD = rating
+TIME_FIELD = timestamp
+seq_len = None
+LABEL_FIELD = label
+threshold = None
+NEG_PREFIX = neg_
+load_col = {'inter': ['user_id', 'item_id', 'timestamp']}
+unload_col = None
+unused_col = None
+additional_feat_suffix = None
+rm_dup_inter = None
+val_interval = None
+filter_inter_by_user_or_item = True
+user_inter_num_interval = [0,inf)
+item_inter_num_interval = [0,inf)
+alias_of_user_id = None
+alias_of_item_id = None
+alias_of_entity_id = None
+alias_of_relation_id = None
+preload_weight = None
+normalize_field = None
+normalize_all = None
+ITEM_LIST_LENGTH_FIELD = item_length
+LIST_SUFFIX = _list
+MAX_ITEM_LIST_LENGTH = 200
+POSITION_FIELD = position_id
+HEAD_ENTITY_ID_FIELD = head_id
+TAIL_ENTITY_ID_FIELD = tail_id
+RELATION_ID_FIELD = relation_id
+ENTITY_ID_FIELD = entity_id
+benchmark_filename = None
+
+Other Hyper Parameters: 
+worker = 0
+wandb_project = recbole
+shuffle = True
+require_pow = False
+enable_amp = False
+enable_scaler = False
+transform = None
+n_layers = 2
+n_heads = 2
+hidden_size = 64
+inner_size = 256
+hidden_dropout_prob = 0.5
+attn_dropout_prob = 0.5
+hidden_act = gelu
+layer_norm_eps = 1e-12
+initializer_range = 0.02
+loss_type = CE
+numerical_features = []
+discretization = None
+kg_reverse_r = False
+entity_kg_num_interval = [0,inf)
+relation_kg_num_interval = [0,inf)
+MODEL_TYPE = ModelType.SEQUENTIAL
+MODEL_INPUT_TYPE = InputType.POINTWISE
+eval_type = EvaluatorType.RANKING
+single_spec = True
+local_rank = 0
+device = cuda
+valid_neg_sample_args = {'distribution': 'uniform', 'sample_num': 'none'}
+test_neg_sample_args = {'distribution': 'uniform', 'sample_num': 'none'}
+
+
+Sat 25 Jul 2026 23:51:09 INFO  sports
+The number of users: 35599
+Average actions of users: 8.324540704533963
+The number of items: 18358
+Average actions of items: 16.142997221768262
+The number of inters: 296337
+The sparsity of the dataset: 99.95465569853714%
+Remain Fields: ['user_id', 'item_id', 'timestamp']
+Sat 25 Jul 2026 23:51:11 INFO  [Training]: train_batch_size = [256] train_neg_sample_args: [{'distribution': 'none', 'sample_num': 'none', 'alpha': 'none', 'dynamic': False, 'candidate_num': 0}]
+Sat 25 Jul 2026 23:51:11 INFO  [Evaluation]: eval_batch_size = [512] eval_args: [{'split': {'LS': 'valid_and_test'}, 'order': 'TO', 'group_by': 'user', 'mode': {'valid': 'full', 'test': 'full'}}]
+Sat 25 Jul 2026 23:51:11 INFO  SASRec(
+  (item_embedding): Embedding(18358, 64, padding_idx=0)
+  (position_embedding): Embedding(200, 64)
+  (trm_encoder): TransformerEncoder(
+    (layer): ModuleList(
+      (0-1): 2 x TransformerLayer(
+        (multi_head_attention): MultiHeadAttention(
+          (query): Linear(in_features=64, out_features=64, bias=True)
+          (key): Linear(in_features=64, out_features=64, bias=True)
+          (value): Linear(in_features=64, out_features=64, bias=True)
+          (softmax): Softmax(dim=-1)
+          (attn_dropout): Dropout(p=0.5, inplace=False)
+          (dense): Linear(in_features=64, out_features=64, bias=True)
+          (LayerNorm): LayerNorm((64,), eps=1e-12, elementwise_affine=True)
+          (out_dropout): Dropout(p=0.5, inplace=False)
+        )
+        (feed_forward): FeedForward(
+          (dense_1): Linear(in_features=64, out_features=256, bias=True)
+          (dense_2): Linear(in_features=256, out_features=64, bias=True)
+          (LayerNorm): LayerNorm((64,), eps=1e-12, elementwise_affine=True)
+          (dropout): Dropout(p=0.5, inplace=False)
+        )
+      )
+    )
+  )
+  (LayerNorm): LayerNorm((64,), eps=1e-12, elementwise_affine=True)
+  (dropout): Dropout(p=0.5, inplace=False)
+  (loss_fct): CrossEntropyLoss()
+)
+Trainable parameters: 1287808
+Sat 25 Jul 2026 23:51:12 INFO  FLOPs: 20293664.0
+Sat 25 Jul 2026 23:53:05 INFO  epoch 0 training [time: 109.89s, train loss: 6930.5746]
+Sat 25 Jul 2026 23:53:07 INFO  epoch 0 evaluating [time: 2.51s, valid_score: 0.009700]
+Sat 25 Jul 2026 23:53:07 INFO  valid result: 
+recall@5 : 0.0114    recall@10 : 0.0195    recall@20 : 0.0326    ndcg@5 : 0.0071    ndcg@10 : 0.0097    ndcg@20 : 0.013    mrr@5 : 0.0057    mrr@10 : 0.0068    mrr@20 : 0.0076    hit@5 : 0.0114    hit@10 : 0.0195    hit@20 : 0.0326
+Sat 25 Jul 2026 23:53:07 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sat 25 Jul 2026 23:54:58 INFO  epoch 1 training [time: 110.49s, train loss: 6586.5794]
+Sat 25 Jul 2026 23:55:00 INFO  epoch 1 evaluating [time: 2.50s, valid_score: 0.013100]
+Sat 25 Jul 2026 23:55:00 INFO  valid result: 
+recall@5 : 0.0153    recall@10 : 0.0267    recall@20 : 0.0473    ndcg@5 : 0.0095    ndcg@10 : 0.0131    ndcg@20 : 0.0183    mrr@5 : 0.0076    mrr@10 : 0.0091    mrr@20 : 0.0105    hit@5 : 0.0153    hit@10 : 0.0267    hit@20 : 0.0473
+Sat 25 Jul 2026 23:55:01 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sat 25 Jul 2026 23:56:51 INFO  epoch 2 training [time: 110.11s, train loss: 6379.3253]
+Sat 25 Jul 2026 23:56:53 INFO  epoch 2 evaluating [time: 2.50s, valid_score: 0.018300]
+Sat 25 Jul 2026 23:56:53 INFO  valid result: 
+recall@5 : 0.021    recall@10 : 0.0363    recall@20 : 0.057    ndcg@5 : 0.0134    ndcg@10 : 0.0183    ndcg@20 : 0.0235    mrr@5 : 0.0109    mrr@10 : 0.0129    mrr@20 : 0.0143    hit@5 : 0.021    hit@10 : 0.0363    hit@20 : 0.057
+Sat 25 Jul 2026 23:56:53 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sat 25 Jul 2026 23:58:43 INFO  epoch 3 training [time: 110.07s, train loss: 6207.7790]
+Sat 25 Jul 2026 23:58:46 INFO  epoch 3 evaluating [time: 2.51s, valid_score: 0.021300]
+Sat 25 Jul 2026 23:58:46 INFO  valid result: 
+recall@5 : 0.0259    recall@10 : 0.0424    recall@20 : 0.0674    ndcg@5 : 0.016    ndcg@10 : 0.0213    ndcg@20 : 0.0276    mrr@5 : 0.0128    mrr@10 : 0.0149    mrr@20 : 0.0166    hit@5 : 0.0259    hit@10 : 0.0424    hit@20 : 0.0674
+Sat 25 Jul 2026 23:58:46 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:00:36 INFO  epoch 4 training [time: 110.07s, train loss: 6060.5024]
+Sun 26 Jul 2026 00:00:38 INFO  epoch 4 evaluating [time: 2.50s, valid_score: 0.024500]
+Sun 26 Jul 2026 00:00:38 INFO  valid result: 
+recall@5 : 0.031    recall@10 : 0.0497    recall@20 : 0.0735    ndcg@5 : 0.0184    ndcg@10 : 0.0245    ndcg@20 : 0.0304    mrr@5 : 0.0143    mrr@10 : 0.0168    mrr@20 : 0.0184    hit@5 : 0.031    hit@10 : 0.0497    hit@20 : 0.0735
+Sun 26 Jul 2026 00:00:38 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:02:28 INFO  epoch 5 training [time: 109.67s, train loss: 5935.4837]
+Sun 26 Jul 2026 00:02:31 INFO  epoch 5 evaluating [time: 2.50s, valid_score: 0.025200]
+Sun 26 Jul 2026 00:02:31 INFO  valid result: 
+recall@5 : 0.0333    recall@10 : 0.0519    recall@20 : 0.0775    ndcg@5 : 0.0192    ndcg@10 : 0.0252    ndcg@20 : 0.0317    mrr@5 : 0.0146    mrr@10 : 0.0171    mrr@20 : 0.0188    hit@5 : 0.0333    hit@10 : 0.0519    hit@20 : 0.0775
+Sun 26 Jul 2026 00:02:31 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:04:21 INFO  epoch 6 training [time: 110.34s, train loss: 5827.6661]
+Sun 26 Jul 2026 00:04:24 INFO  epoch 6 evaluating [time: 2.50s, valid_score: 0.027100]
+Sun 26 Jul 2026 00:04:24 INFO  valid result: 
+recall@5 : 0.0364    recall@10 : 0.0559    recall@20 : 0.0814    ndcg@5 : 0.0208    ndcg@10 : 0.0271    ndcg@20 : 0.0335    mrr@5 : 0.0157    mrr@10 : 0.0183    mrr@20 : 0.0201    hit@5 : 0.0364    hit@10 : 0.0559    hit@20 : 0.0814
+Sun 26 Jul 2026 00:04:24 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:06:14 INFO  epoch 7 training [time: 110.23s, train loss: 5734.6307]
+Sun 26 Jul 2026 00:06:16 INFO  epoch 7 evaluating [time: 2.51s, valid_score: 0.027100]
+Sun 26 Jul 2026 00:06:16 INFO  valid result: 
+recall@5 : 0.0368    recall@10 : 0.0553    recall@20 : 0.0829    ndcg@5 : 0.0211    ndcg@10 : 0.0271    ndcg@20 : 0.034    mrr@5 : 0.0159    mrr@10 : 0.0184    mrr@20 : 0.0203    hit@5 : 0.0368    hit@10 : 0.0553    hit@20 : 0.0829
+Sun 26 Jul 2026 00:06:16 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:08:06 INFO  epoch 8 training [time: 110.02s, train loss: 5663.2402]
+Sun 26 Jul 2026 00:08:09 INFO  epoch 8 evaluating [time: 2.50s, valid_score: 0.027100]
+Sun 26 Jul 2026 00:08:09 INFO  valid result: 
+recall@5 : 0.0363    recall@10 : 0.0572    recall@20 : 0.083    ndcg@5 : 0.0203    ndcg@10 : 0.0271    ndcg@20 : 0.0336    mrr@5 : 0.0151    mrr@10 : 0.0178    mrr@20 : 0.0196    hit@5 : 0.0363    hit@10 : 0.0572    hit@20 : 0.083
+Sun 26 Jul 2026 00:08:09 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:09:59 INFO  epoch 9 training [time: 109.91s, train loss: 5601.7058]
+Sun 26 Jul 2026 00:10:01 INFO  epoch 9 evaluating [time: 2.50s, valid_score: 0.027500]
+Sun 26 Jul 2026 00:10:01 INFO  valid result: 
+recall@5 : 0.0378    recall@10 : 0.0578    recall@20 : 0.0848    ndcg@5 : 0.0211    ndcg@10 : 0.0275    ndcg@20 : 0.0343    mrr@5 : 0.0156    mrr@10 : 0.0182    mrr@20 : 0.02    hit@5 : 0.0378    hit@10 : 0.0578    hit@20 : 0.0848
+Sun 26 Jul 2026 00:10:01 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:11:52 INFO  epoch 10 training [time: 110.27s, train loss: 5556.4339]
+Sun 26 Jul 2026 00:11:54 INFO  epoch 10 evaluating [time: 2.50s, valid_score: 0.027700]
+Sun 26 Jul 2026 00:11:54 INFO  valid result: 
+recall@5 : 0.0386    recall@10 : 0.0576    recall@20 : 0.0844    ndcg@5 : 0.0215    ndcg@10 : 0.0277    ndcg@20 : 0.0344    mrr@5 : 0.0159    mrr@10 : 0.0184    mrr@20 : 0.0202    hit@5 : 0.0386    hit@10 : 0.0576    hit@20 : 0.0844
+Sun 26 Jul 2026 00:11:54 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:13:44 INFO  epoch 11 training [time: 110.25s, train loss: 5512.3447]
+Sun 26 Jul 2026 00:13:47 INFO  epoch 11 evaluating [time: 2.51s, valid_score: 0.028000]
+Sun 26 Jul 2026 00:13:47 INFO  valid result: 
+recall@5 : 0.0385    recall@10 : 0.0592    recall@20 : 0.0851    ndcg@5 : 0.0214    ndcg@10 : 0.028    ndcg@20 : 0.0345    mrr@5 : 0.0157    mrr@10 : 0.0184    mrr@20 : 0.0202    hit@5 : 0.0385    hit@10 : 0.0592    hit@20 : 0.0851
+Sun 26 Jul 2026 00:13:47 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:15:37 INFO  epoch 12 training [time: 110.00s, train loss: 5476.4295]
+Sun 26 Jul 2026 00:15:40 INFO  epoch 12 evaluating [time: 2.51s, valid_score: 0.028100]
+Sun 26 Jul 2026 00:15:40 INFO  valid result: 
+recall@5 : 0.0385    recall@10 : 0.0596    recall@20 : 0.0844    ndcg@5 : 0.0214    ndcg@10 : 0.0281    ndcg@20 : 0.0344    mrr@5 : 0.0157    mrr@10 : 0.0185    mrr@20 : 0.0202    hit@5 : 0.0385    hit@10 : 0.0596    hit@20 : 0.0844
+Sun 26 Jul 2026 00:15:40 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:17:30 INFO  epoch 13 training [time: 110.26s, train loss: 5447.7829]
+Sun 26 Jul 2026 00:17:32 INFO  epoch 13 evaluating [time: 2.50s, valid_score: 0.028400]
+Sun 26 Jul 2026 00:17:32 INFO  valid result: 
+recall@5 : 0.0397    recall@10 : 0.0602    recall@20 : 0.0868    ndcg@5 : 0.0219    ndcg@10 : 0.0284    ndcg@20 : 0.0351    mrr@5 : 0.016    mrr@10 : 0.0187    mrr@20 : 0.0205    hit@5 : 0.0397    hit@10 : 0.0602    hit@20 : 0.0868
+Sun 26 Jul 2026 00:17:32 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:19:23 INFO  epoch 14 training [time: 110.17s, train loss: 5424.7934]
+Sun 26 Jul 2026 00:19:25 INFO  epoch 14 evaluating [time: 2.50s, valid_score: 0.028200]
+Sun 26 Jul 2026 00:19:25 INFO  valid result: 
+recall@5 : 0.0389    recall@10 : 0.0596    recall@20 : 0.0858    ndcg@5 : 0.0215    ndcg@10 : 0.0282    ndcg@20 : 0.0347    mrr@5 : 0.0158    mrr@10 : 0.0185    mrr@20 : 0.0203    hit@5 : 0.0389    hit@10 : 0.0596    hit@20 : 0.0858
+Sun 26 Jul 2026 00:21:16 INFO  epoch 15 training [time: 110.48s, train loss: 5401.9314]
+Sun 26 Jul 2026 00:21:18 INFO  epoch 15 evaluating [time: 2.50s, valid_score: 0.027600]
+Sun 26 Jul 2026 00:21:18 INFO  valid result: 
+recall@5 : 0.0379    recall@10 : 0.0586    recall@20 : 0.0861    ndcg@5 : 0.0209    ndcg@10 : 0.0276    ndcg@20 : 0.0346    mrr@5 : 0.0153    mrr@10 : 0.0181    mrr@20 : 0.02    hit@5 : 0.0379    hit@10 : 0.0586    hit@20 : 0.0861
+Sun 26 Jul 2026 00:23:08 INFO  epoch 16 training [time: 110.14s, train loss: 5381.5905]
+Sun 26 Jul 2026 00:23:11 INFO  epoch 16 evaluating [time: 2.50s, valid_score: 0.027300]
+Sun 26 Jul 2026 00:23:11 INFO  valid result: 
+recall@5 : 0.0376    recall@10 : 0.0578    recall@20 : 0.0864    ndcg@5 : 0.0208    ndcg@10 : 0.0273    ndcg@20 : 0.0345    mrr@5 : 0.0153    mrr@10 : 0.018    mrr@20 : 0.0199    hit@5 : 0.0376    hit@10 : 0.0578    hit@20 : 0.0864
+Sun 26 Jul 2026 00:25:01 INFO  epoch 17 training [time: 110.21s, train loss: 5359.3327]
+Sun 26 Jul 2026 00:25:03 INFO  epoch 17 evaluating [time: 2.49s, valid_score: 0.028200]
+Sun 26 Jul 2026 00:25:03 INFO  valid result: 
+recall@5 : 0.0389    recall@10 : 0.0595    recall@20 : 0.0871    ndcg@5 : 0.0216    ndcg@10 : 0.0282    ndcg@20 : 0.0351    mrr@5 : 0.0158    mrr@10 : 0.0186    mrr@20 : 0.0204    hit@5 : 0.0389    hit@10 : 0.0595    hit@20 : 0.0871
+Sun 26 Jul 2026 00:26:54 INFO  epoch 18 training [time: 110.15s, train loss: 5348.0478]
+Sun 26 Jul 2026 00:26:56 INFO  epoch 18 evaluating [time: 2.49s, valid_score: 0.028000]
+Sun 26 Jul 2026 00:26:56 INFO  valid result: 
+recall@5 : 0.0381    recall@10 : 0.0589    recall@20 : 0.0869    ndcg@5 : 0.0212    ndcg@10 : 0.028    ndcg@20 : 0.035    mrr@5 : 0.0157    mrr@10 : 0.0184    mrr@20 : 0.0204    hit@5 : 0.0381    hit@10 : 0.0589    hit@20 : 0.0869
+Sun 26 Jul 2026 00:28:46 INFO  epoch 19 training [time: 109.87s, train loss: 5334.7563]
+Sun 26 Jul 2026 00:28:48 INFO  epoch 19 evaluating [time: 2.50s, valid_score: 0.028000]
+Sun 26 Jul 2026 00:28:48 INFO  valid result: 
+recall@5 : 0.0392    recall@10 : 0.0592    recall@20 : 0.0879    ndcg@5 : 0.0216    ndcg@10 : 0.028    ndcg@20 : 0.0353    mrr@5 : 0.0158    mrr@10 : 0.0184    mrr@20 : 0.0204    hit@5 : 0.0392    hit@10 : 0.0592    hit@20 : 0.0879
+Sun 26 Jul 2026 00:30:39 INFO  epoch 20 training [time: 110.43s, train loss: 5318.5561]
+Sun 26 Jul 2026 00:30:41 INFO  epoch 20 evaluating [time: 2.49s, valid_score: 0.028700]
+Sun 26 Jul 2026 00:30:41 INFO  valid result: 
+recall@5 : 0.0388    recall@10 : 0.0605    recall@20 : 0.0873    ndcg@5 : 0.0216    ndcg@10 : 0.0287    ndcg@20 : 0.0354    mrr@5 : 0.016    mrr@10 : 0.0189    mrr@20 : 0.0207    hit@5 : 0.0388    hit@10 : 0.0605    hit@20 : 0.0873
+Sun 26 Jul 2026 00:30:41 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:32:31 INFO  epoch 21 training [time: 109.97s, train loss: 5301.1806]
+Sun 26 Jul 2026 00:32:34 INFO  epoch 21 evaluating [time: 2.50s, valid_score: 0.028100]
+Sun 26 Jul 2026 00:32:34 INFO  valid result: 
+recall@5 : 0.0386    recall@10 : 0.0592    recall@20 : 0.0874    ndcg@5 : 0.0214    ndcg@10 : 0.0281    ndcg@20 : 0.0352    mrr@5 : 0.0158    mrr@10 : 0.0185    mrr@20 : 0.0205    hit@5 : 0.0386    hit@10 : 0.0592    hit@20 : 0.0874
+Sun 26 Jul 2026 00:34:24 INFO  epoch 22 training [time: 110.05s, train loss: 5294.4356]
+Sun 26 Jul 2026 00:34:26 INFO  epoch 22 evaluating [time: 2.49s, valid_score: 0.028200]
+Sun 26 Jul 2026 00:34:26 INFO  valid result: 
+recall@5 : 0.0385    recall@10 : 0.0589    recall@20 : 0.0874    ndcg@5 : 0.0216    ndcg@10 : 0.0282    ndcg@20 : 0.0354    mrr@5 : 0.0161    mrr@10 : 0.0188    mrr@20 : 0.0207    hit@5 : 0.0385    hit@10 : 0.0589    hit@20 : 0.0874
+Sun 26 Jul 2026 00:36:17 INFO  epoch 23 training [time: 110.24s, train loss: 5286.3443]
+Sun 26 Jul 2026 00:36:19 INFO  epoch 23 evaluating [time: 2.49s, valid_score: 0.028400]
+Sun 26 Jul 2026 00:36:19 INFO  valid result: 
+recall@5 : 0.0389    recall@10 : 0.0604    recall@20 : 0.0877    ndcg@5 : 0.0215    ndcg@10 : 0.0284    ndcg@20 : 0.0353    mrr@5 : 0.0158    mrr@10 : 0.0186    mrr@20 : 0.0205    hit@5 : 0.0389    hit@10 : 0.0604    hit@20 : 0.0877
+Sun 26 Jul 2026 00:38:09 INFO  epoch 24 training [time: 110.23s, train loss: 5272.8326]
+Sun 26 Jul 2026 00:38:12 INFO  epoch 24 evaluating [time: 2.51s, valid_score: 0.029300]
+Sun 26 Jul 2026 00:38:12 INFO  valid result: 
+recall@5 : 0.0403    recall@10 : 0.0616    recall@20 : 0.0898    ndcg@5 : 0.0224    ndcg@10 : 0.0293    ndcg@20 : 0.0363    mrr@5 : 0.0165    mrr@10 : 0.0193    mrr@20 : 0.0212    hit@5 : 0.0403    hit@10 : 0.0616    hit@20 : 0.0898
+Sun 26 Jul 2026 00:38:12 INFO  Saving current: recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:40:02 INFO  epoch 25 training [time: 109.92s, train loss: 5261.2320]
+Sun 26 Jul 2026 00:40:04 INFO  epoch 25 evaluating [time: 2.49s, valid_score: 0.028700]
+Sun 26 Jul 2026 00:40:04 INFO  valid result: 
+recall@5 : 0.0387    recall@10 : 0.0599    recall@20 : 0.0872    ndcg@5 : 0.0218    ndcg@10 : 0.0287    ndcg@20 : 0.0355    mrr@5 : 0.0162    mrr@10 : 0.0191    mrr@20 : 0.0209    hit@5 : 0.0387    hit@10 : 0.0599    hit@20 : 0.0872
+Sun 26 Jul 2026 00:41:55 INFO  epoch 26 training [time: 110.40s, train loss: 5255.6175]
+Sun 26 Jul 2026 00:41:57 INFO  epoch 26 evaluating [time: 2.49s, valid_score: 0.028400]
+Sun 26 Jul 2026 00:41:57 INFO  valid result: 
+recall@5 : 0.0396    recall@10 : 0.0595    recall@20 : 0.0878    ndcg@5 : 0.0219    ndcg@10 : 0.0284    ndcg@20 : 0.0354    mrr@5 : 0.0161    mrr@10 : 0.0187    mrr@20 : 0.0206    hit@5 : 0.0396    hit@10 : 0.0595    hit@20 : 0.0878
+Sun 26 Jul 2026 00:43:47 INFO  epoch 27 training [time: 110.27s, train loss: 5242.5059]
+Sun 26 Jul 2026 00:43:50 INFO  epoch 27 evaluating [time: 2.50s, valid_score: 0.028500]
+Sun 26 Jul 2026 00:43:50 INFO  valid result: 
+recall@5 : 0.0384    recall@10 : 0.0599    recall@20 : 0.0871    ndcg@5 : 0.0215    ndcg@10 : 0.0285    ndcg@20 : 0.0353    mrr@5 : 0.0159    mrr@10 : 0.0188    mrr@20 : 0.0206    hit@5 : 0.0384    hit@10 : 0.0599    hit@20 : 0.0871
+Sun 26 Jul 2026 00:45:40 INFO  epoch 28 training [time: 109.68s, train loss: 5235.3184]
+Sun 26 Jul 2026 00:45:42 INFO  epoch 28 evaluating [time: 2.50s, valid_score: 0.028500]
+Sun 26 Jul 2026 00:45:42 INFO  valid result: 
+recall@5 : 0.0397    recall@10 : 0.0592    recall@20 : 0.0857    ndcg@5 : 0.0222    ndcg@10 : 0.0285    ndcg@20 : 0.0351    mrr@5 : 0.0164    mrr@10 : 0.019    mrr@20 : 0.0208    hit@5 : 0.0397    hit@10 : 0.0592    hit@20 : 0.0857
+Sun 26 Jul 2026 00:47:32 INFO  epoch 29 training [time: 110.05s, train loss: 5233.4788]
+Sun 26 Jul 2026 00:47:35 INFO  epoch 29 evaluating [time: 2.49s, valid_score: 0.028600]
+Sun 26 Jul 2026 00:47:35 INFO  valid result: 
+recall@5 : 0.0394    recall@10 : 0.0595    recall@20 : 0.087    ndcg@5 : 0.0221    ndcg@10 : 0.0286    ndcg@20 : 0.0355    mrr@5 : 0.0164    mrr@10 : 0.0191    mrr@20 : 0.021    hit@5 : 0.0394    hit@10 : 0.0595    hit@20 : 0.087
+Sun 26 Jul 2026 00:49:25 INFO  epoch 30 training [time: 109.96s, train loss: 5222.0555]
+Sun 26 Jul 2026 00:49:27 INFO  epoch 30 evaluating [time: 2.50s, valid_score: 0.028200]
+Sun 26 Jul 2026 00:49:27 INFO  valid result: 
+recall@5 : 0.0385    recall@10 : 0.0592    recall@20 : 0.0867    ndcg@5 : 0.0216    ndcg@10 : 0.0282    ndcg@20 : 0.0351    mrr@5 : 0.016    mrr@10 : 0.0187    mrr@20 : 0.0206    hit@5 : 0.0385    hit@10 : 0.0592    hit@20 : 0.0867
+Sun 26 Jul 2026 00:51:17 INFO  epoch 31 training [time: 109.86s, train loss: 5213.8168]
+Sun 26 Jul 2026 00:51:20 INFO  epoch 31 evaluating [time: 2.49s, valid_score: 0.028800]
+Sun 26 Jul 2026 00:51:20 INFO  valid result: 
+recall@5 : 0.0398    recall@10 : 0.0608    recall@20 : 0.088    ndcg@5 : 0.0221    ndcg@10 : 0.0288    ndcg@20 : 0.0357    mrr@5 : 0.0162    mrr@10 : 0.019    mrr@20 : 0.0208    hit@5 : 0.0398    hit@10 : 0.0608    hit@20 : 0.088
+Sun 26 Jul 2026 00:53:09 INFO  epoch 32 training [time: 109.11s, train loss: 5209.2511]
+Sun 26 Jul 2026 00:53:11 INFO  epoch 32 evaluating [time: 2.49s, valid_score: 0.028300]
+Sun 26 Jul 2026 00:53:11 INFO  valid result: 
+recall@5 : 0.0399    recall@10 : 0.0593    recall@20 : 0.0874    ndcg@5 : 0.0221    ndcg@10 : 0.0283    ndcg@20 : 0.0354    mrr@5 : 0.0162    mrr@10 : 0.0188    mrr@20 : 0.0207    hit@5 : 0.0399    hit@10 : 0.0593    hit@20 : 0.0874
+Sun 26 Jul 2026 00:55:00 INFO  epoch 33 training [time: 108.94s, train loss: 5203.1320]
+Sun 26 Jul 2026 00:55:03 INFO  epoch 33 evaluating [time: 2.49s, valid_score: 0.028300]
+Sun 26 Jul 2026 00:55:03 INFO  valid result: 
+recall@5 : 0.0397    recall@10 : 0.0596    recall@20 : 0.0871    ndcg@5 : 0.0219    ndcg@10 : 0.0283    ndcg@20 : 0.0352    mrr@5 : 0.016    mrr@10 : 0.0186    mrr@20 : 0.0205    hit@5 : 0.0397    hit@10 : 0.0596    hit@20 : 0.0871
+Sun 26 Jul 2026 00:56:51 INFO  epoch 34 training [time: 108.70s, train loss: 5196.5083]
+Sun 26 Jul 2026 00:56:54 INFO  epoch 34 evaluating [time: 2.49s, valid_score: 0.028500]
+Sun 26 Jul 2026 00:56:54 INFO  valid result: 
+recall@5 : 0.0385    recall@10 : 0.06    recall@20 : 0.0871    ndcg@5 : 0.0215    ndcg@10 : 0.0285    ndcg@20 : 0.0353    mrr@5 : 0.0159    mrr@10 : 0.0188    mrr@20 : 0.0206    hit@5 : 0.0385    hit@10 : 0.06    hit@20 : 0.0871
+Sun 26 Jul 2026 00:58:43 INFO  epoch 35 training [time: 108.94s, train loss: 5188.7592]
+Sun 26 Jul 2026 00:58:45 INFO  epoch 35 evaluating [time: 2.49s, valid_score: 0.027700]
+Sun 26 Jul 2026 00:58:45 INFO  valid result: 
+recall@5 : 0.0381    recall@10 : 0.0583    recall@20 : 0.0874    ndcg@5 : 0.0212    ndcg@10 : 0.0277    ndcg@20 : 0.0351    mrr@5 : 0.0157    mrr@10 : 0.0183    mrr@20 : 0.0203    hit@5 : 0.0381    hit@10 : 0.0583    hit@20 : 0.0874
+Sun 26 Jul 2026 00:58:45 INFO  Finished training, best eval result in epoch 24
+Sun 26 Jul 2026 00:58:45 INFO  Loading model structure and parameters from recbole/output/saved/SASRec-Jul-25-2026_23-51-12.pth
+Sun 26 Jul 2026 00:58:49 INFO  The running environment of this training is as follows:
++-------------+----------------+
+| Environment |     Usage      |
++=============+================+
+| CPU         |     1.00 %     |
++-------------+----------------+
+| GPU         | 1.94 G/11.63 G |
++-------------+----------------+
+| Memory      | 2.74 G/31.12 G |
++-------------+----------------+
+Sun 26 Jul 2026 00:58:49 INFO  best valid : OrderedDict([('recall@5', np.float64(0.0403)), ('recall@10', np.float64(0.0616)), ('recall@20', np.float64(0.0898)), ('ndcg@5', np.float64(0.0224)), ('ndcg@10', np.float64(0.0293)), ('ndcg@20', np.float64(0.0363)), ('mrr@5', np.float64(0.0165)), ('mrr@10', np.float64(0.0193)), ('mrr@20', np.float64(0.0212)), ('hit@5', np.float64(0.0403)), ('hit@10', np.float64(0.0616)), ('hit@20', np.float64(0.0898))])
+Sun 26 Jul 2026 00:58:49 INFO  test result: OrderedDict([('recall@5', np.float64(0.0297)), ('recall@10', np.float64(0.0471)), ('recall@20', np.float64(0.0697)), ('ndcg@5', np.float64(0.0164)), ('ndcg@10', np.float64(0.022)), ('ndcg@20', np.float64(0.0277)), ('mrr@5', np.float64(0.0121)), ('mrr@10', np.float64(0.0143)), ('mrr@20', np.float64(0.0159)), ('hit@5', np.float64(0.0297)), ('hit@10', np.float64(0.0471)), ('hit@20', np.float64(0.0697))])

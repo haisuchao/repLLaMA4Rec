@@ -1,0 +1,12 @@
+# Filter mode: full
+# Checkpoint: qwen3-embedding-0.6b  Split: test
+
+ndcg_5              	all	0.0480
+hr_5                	all	0.0705
+mrr_5               	all	0.0407
+ndcg_10             	all	0.0581
+hr_10               	all	0.1019
+mrr_10              	all	0.0448
+ndcg_20             	all	0.0684
+hr_20               	all	0.1424
+mrr_20              	all	0.0476

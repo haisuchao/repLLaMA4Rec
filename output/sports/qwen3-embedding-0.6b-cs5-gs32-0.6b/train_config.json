@@ -1,0 +1,15 @@
+{
+  "dataset": "sports",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "data_variant": "cs5",
+  "tag": "cs5-gs32-0.6b",
+  "train_group_size": 32,
+  "per_device_batch": 4,
+  "gradient_accumulation": 8,
+  "learning_rate": "1e-4",
+  "epochs": 3,
+  "save_steps": 1000,
+  "query_max_len": 128,
+  "passage_max_len": 196,
+  "timestamp": "2026-07-22T17:13:49+07:00"
+}

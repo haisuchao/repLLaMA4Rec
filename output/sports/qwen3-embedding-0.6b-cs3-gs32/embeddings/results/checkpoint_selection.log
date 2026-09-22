@@ -1,0 +1,6 @@
+checkpoint                      ndcg_10
+checkpoint-1000                 0.0177
+checkpoint-2000                 0.0219
+checkpoint-3000                 0.0223
+checkpoint-3339                 0.0223
+qwen3-embedding-0.6b-cs3-gs32   0.0223

@@ -1,0 +1,15 @@
+checkpoint                      ndcg_10
+checkpoint-1000                 0.0330
+checkpoint-2000                 0.0370
+checkpoint-3000                 0.0391
+checkpoint-4000                 0.0412
+checkpoint-5000                 0.0422
+checkpoint-6000                 0.0441
+checkpoint-7000                 0.0439
+checkpoint-8000                 0.0463
+checkpoint-9000                 0.0456
+checkpoint-10000                0.0467
+checkpoint-11000                0.0467
+checkpoint-12000                0.0467
+checkpoint-12321                0.0468
+qwen3-embedding-0.6b-v2-cs5-aug-gs20  0.0468

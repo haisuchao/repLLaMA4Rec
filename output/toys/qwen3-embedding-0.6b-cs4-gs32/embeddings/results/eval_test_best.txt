@@ -1,0 +1,13 @@
+
+ndcg_5              	all	0.0260
+hr_5                	all	0.0503
+mrr_5               	all	0.0182
+ndcg_10             	all	0.0394
+hr_10               	all	0.0919
+mrr_10              	all	0.0237
+ndcg_20             	all	0.0516
+hr_20               	all	0.1402
+mrr_20              	all	0.0270
+
+Best checkpoint : checkpoint-1821
+Selection metric: ndcg_10 (valid) = 0.0438

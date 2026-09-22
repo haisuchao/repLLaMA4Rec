@@ -1,0 +1,15 @@
+{
+  "dataset": "sports",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "data_variant": "v2-cs5-aug",
+  "tag": "v2-cs5-aug",
+  "train_group_size": 50,
+  "per_device_batch": 4,
+  "gradient_accumulation": 8,
+  "learning_rate": "1e-4",
+  "epochs": 3,
+  "save_steps": 1000,
+  "query_max_len": 320,
+  "passage_max_len": 196,
+  "timestamp": "2026-07-14T15:07:34+07:00"
+}
