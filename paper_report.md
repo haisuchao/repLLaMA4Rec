@@ -1,6 +1,7 @@
 # Paper Report — repLLaMA for Sequential Recommendation
 
-> Tổng hợp kết quả thực nghiệm sẵn sàng đưa vào paper. Cập nhật: 2026-07-14.
+> Tổng hợp kết quả thực nghiệm sẵn sàng đưa vào paper. Cập nhật: 2026-07-14; §0 (kết quả tốt nhất hiện tại,
+> FADE + Reranker trên Beauty/Sports/Toys) cập nhật 2026-10-01.
 >
 > **Nguồn số liệu**: tất cả số liệu trong file này được tính trực tiếp từ TREC run files / RecBole checkpoints
 > đã có trên máy này (không suy diễn/nội suy). Baseline literature (TIGER/S³-Rec) **chưa** được đưa vào vì repo
@@ -8,6 +9,59 @@
 >
 > Với các ô còn thiếu (chưa chạy), file đánh dấu rõ **"N/A — chưa chạy"** kèm lệnh tái tạo chính xác. Xem
 > [`MULTI_MACHINE_GUIDE.md`](MULTI_MACHINE_GUIDE.md) để phân phối các thực nghiệm còn thiếu sang nhiều máy.
+
+---
+
+## 0. Kết quả tốt nhất hiện tại — FADE-0.6B + Reranker (cập nhật 2026-10-01)
+
+**Cấu hình tốt nhất**: pipeline 2 tầng.
+1. Retriever FADE-0.6B (Qwen3-Embedding-0.6B + LoRA, như §1.5) → top-100 → history filter (mode `full`).
+2. Reranker rankLLaMA: Qwen3-Embedding-0.6B + LoRA (r 16, α 64), `AutoModelForSequenceClassification`, group 8
+   (1 pos + 7 neg lấy đều từ top-100), 3 epoch, lr 1e-4, effective batch 32. Train trên query augmented cùng format
+   retriever, **chỉ giữ query có positive trong top-100**.
+3. Fusion: α·z(retriever) + (1−α)·z(reranker), z-score trong từng query; α chọn trên 2,000 query valid.
+
+Tái tạo: `./train_reranker.sh <ds> --tag <retriever_tag>` + `./rerank.sh <ds> --tag <retriever_tag>` (README §5).
+Thiết kế, chẩn đoán và toàn bộ ablation: [`diag/README.md`](diag/README.md).
+
+**Định dạng giống Table 2 của `paper/paper_draft.md`** (R = Recall = HR, N = NDCG; test, full ranking trên
+toàn bộ query, history-filtered; 1 seed):
+
+| Method | Beauty R@5 | R@10 | N@5 | N@10 | Sports R@5 | R@10 | N@5 | N@10 | Toys R@5 | R@10 | N@5 | N@10 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| SASRec† (Table 2) | 0.0387 | 0.0605 | 0.0249 | 0.0318 | 0.0233 | 0.0350 | 0.0154 | 0.0192 | 0.0600 | 0.0877 | 0.0343 | 0.0433 |
+| FADE-0.6B (Table 2) | 0.0730 | 0.1088 | 0.0501 | 0.0616 | 0.0447 | 0.0684 | 0.0294 | 0.0371 | 0.0869 | 0.1273 | 0.0592 | 0.0722 |
+| **FADE-0.6B + Reranker-0.6B** | **0.0864** | **0.1189** | **0.0616** | **0.0721** | **0.0511** | **0.0737** | **0.0350** | **0.0423** | **0.0999** | **0.1382** | **0.0691** | **0.0814** |
+| α (chọn trên valid) | 0.45 | | | | 0.55 | | | | 0.55 | | | |
+
+So với FADE-0.6B (Table 2): Beauty +17.0% N@10 / +9.3% R@10, Sports +14.0% / +7.7%, Toys +12.7% / +8.6%;
+mạnh nhất ở N@5 (+17–23%). So với SASRec†: +88–127% N@10.
+
+**9 metric đầy đủ** (retriever/reranker/fused trên cùng ứng viên):
+`output/<ds>/<retriever>-reranker-<variant>/inference/eval_test_*.txt` — Beauty
+`qwen3-embedding-0.6b-aug-5-reranker-aug/inference/eval_test_R1aug.txt`, Sports
+`qwen3-embedding-0.6b-cs5-aug-gs32-reranker-cs5-aug/inference/eval_test_final.txt`, Toys
+`qwen3-embedding-0.6b-cs5-gs32-aug-0.6b-reranker-cs5-aug/inference/eval_test_final.txt`.
+
+| Dataset | MRR@10 retriever → fused | NDCG@20 | HR@20 |
+|---|---|---|---|
+| Beauty | 0.0473 → **0.0577** (+22.0%) | 0.0728 → **0.0823** | 0.1534 → **0.1596** |
+| Sports | 0.0275 → **0.0328** (+19.5%) | 0.0447 → **0.0499** | 0.0993 → **0.1039** |
+| Toys | 0.0554 → **0.0640** (+15.5%) | 0.0846 → **0.0930** | 0.1764 → **0.1841** |
+
+**Ablation reranker (Beauty, fused NDCG@10, so ở cùng α)** — không biến thể nào vượt cấu hình trên:
+group 32 (≤ ±0.0008), depth train 200 (≤ −0.0007), backbone **4B** (≤ −0.0006, train chậm 5×), SimANS / khử
+nhiễu collaborative (−1–2%), giữ query có positive ngoài pool (cách cũ: reranker kém cả retriever).
+
+**Lưu ý trước khi đưa vào paper**:
+- Retriever trong các lần chạy này là adapter cuối (best checkpoint không còn trong tarball): retriever filtered
+  NDCG@10 = 0.0617 / 0.0369 / 0.0722 so với 0.0616 / 0.0371 / 0.0722 trong Table 2 — lệch ≤ 0.0002.
+- α dao động theo mẫu valid (Beauty: α 0.3 → 0.0708, α 0.45 → 0.0721) → nên báo cáo fused ≈ 0.071–0.072 cho Beauty,
+  hoặc chọn α trên toàn bộ valid in-pool (`rerank.sh --valid-sample 10000`). Cần thêm seed để có sai số.
+- ⚠️ **Table 2 hiện bold FADE-0.6B ở cột Beauty dù hàng LlamaRec† cao hơn** (R@10 0.1524, N@10 0.0759 > 0.1088,
+  0.0616); câu "best NDCG@10 and HR@10 of every method" ở §4.5 vì thế chưa đúng với bảng. Kể cả pipeline có reranker
+  vẫn thấp hơn LlamaRec ở Beauty R@10 (−22%) và N@10 (−5%), dù cao hơn ở R@5 (+1.4%) và N@5 (+13%). Cần kiểm tra lại
+  protocol/nguồn số của LlamaRec (có thể khác protocol) trước khi viết claim.
 
 ---
 

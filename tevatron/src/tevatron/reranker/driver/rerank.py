@@ -55,6 +55,8 @@ def main():
         lora_name_or_path=model_args.lora_name_or_path,
         cache_dir=model_args.cache_dir,
     )
+    # Xem driver/train.py: config.pad_token_id phải khớp tokenizer, nếu không score = hằng số
+    model.hf_model.config.pad_token_id = tokenizer.pad_token_id
 
     rerank_dataset = RerankerInferenceDataset(data_args=data_args)
     rerank_collator = RerankerInferenceCollator(data_args=data_args, tokenizer=tokenizer)

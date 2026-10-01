@@ -1,0 +1,21 @@
+{
+  "dataset": "sports",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "reranker_model": "Qwen/Qwen3-Embedding-0.6B",
+  "retriever_dir": "./output/sports/qwen3-embedding-0.6b-cs5-aug-gs32",
+  "retriever_label": "final",
+  "retriever_lora": "./output/sports/qwen3-embedding-0.6b-cs5-aug-gs32",
+  "corpus_emb": "./output/sports/qwen3-embedding-0.6b-cs5-aug-gs32/embeddings/corpus/final.pkl",
+  "eval_variant": "cs5-aug",
+  "query_variant": "cs5-aug",
+  "query_max_len": 128,
+  "depth": 100,
+  "keep_out_of_pool": false,
+  "train_queries": 64360,
+  "group_size": 8,
+  "epochs": 3,
+  "learning_rate": "1e-4",
+  "per_device_batch": 4,
+  "gradient_accumulation": 8,
+  "timestamp": "2026-09-29T17:06:39+07:00"
+}

@@ -680,10 +680,19 @@ Stage 1 — repLLaMA (bi-encoder)
   query_embedding = repLLaMA(user_history)
   top_K = FAISS.search(query_embedding, K=100)
 
+History filter
+  candidates = top_K − {items user đã mua}
+
 Stage 2 — rankLLaMA (cross-encoder)
-  score(i) = CrossEncoder([user_history; item_title_i])  for i in top_K
-  final_ranking = sort(top_K, by=score)
+  score(i) = CrossEncoder([user_history; item_title_i])  for i in candidates
+
+Fusion (α chọn trên valid theo NDCG@10)
+  final(i) = α·z(retriever_score(i)) + (1−α)·z(score(i))   # z-score trong từng query
+  final_ranking = sort(candidates, by=final)
 ```
+
+**Kết quả Beauty (retriever `aug-5`, test, history-filtered):** retriever 0.0617 NDCG@10 → reranker riêng
+0.0654 → fused (α = 0.3) **0.0708 (+14.8%)**. Thiết kế dữ liệu train và toàn bộ thí nghiệm: [diag/README.md](diag/README.md).
 
 **Tại sao cross-encoder mạnh hơn bi-encoder ở reranking?**
 
@@ -776,19 +785,21 @@ Rank  Score    Item
 ### 5.1 Cấu trúc thư mục output
 
 ```
-output/<dataset>/<model_tag>-reranker/
+output/<dataset>/<model_tag>-reranker[-<query_variant>]/     # vd. qwen3-embedding-0.6b-aug-5-reranker-aug
+├── reranker_config.json         # Retriever checkpoint + data variant + siêu tham số (rerank.sh đọc file này)
 ├── train_data/
-│   ├── train_queries.pkl        # Encoded train queries (cache, reuse được)
-│   ├── train_rank.txt           # FAISS search output thô
-│   ├── train_rank.trec          # Converted TREC format (deduplicated)
-│   └── reranker_train.jsonl     # Training data: query + pos + hard negs
-├── checkpoint-500/              # Reranker LoRA checkpoints
-├── adapter_model.safetensors    # Final reranker model (= checkpoint cuối)
+│   ├── train_queries.pkl        # Encoded train queries (cache)
+│   ├── train_rank.trec          # Top-depth của retriever cho train queries (cache)
+│   └── reranker_train_inpool.jsonl   # Chỉ query có positive trong top-depth; negatives = phần còn lại
+├── checkpoint-*/                # Reranker LoRA checkpoints
+├── adapter_model.safetensors    # Final reranker model
 └── inference/
-    ├── test_pairs.jsonl         # Flat (query, candidate) pairs để chạy reranker
-    ├── test_reranked.txt        # Reranker output thô: qid\tdocid\tscore
-    ├── test_reranked.trec       # TREC format (có rank)
-    └── eval_test_reranked.txt   # Metrics + bảng so sánh Retriever vs Reranker
+    ├── <split>_retriever_rank.trec          # Top-depth retriever cho valid/test (cache)
+    ├── <split>_pairs_<scope>.jsonl          # (query, candidate) đã loại item lịch sử
+    ├── <split>_<scope>_<ckpt>_scores.txt    # Reranker scores: qid\tdocid\tscore
+    ├── alpha_<ckpt>.json                    # α chọn trên valid + đường cong NDCG@10
+    ├── <split>_<ckpt>_fused.trec            # Ranking cuối (fused)
+    └── eval_<split>_<ckpt>.txt              # Bảng retriever raw / filtered / reranker / fused
 ```
 
 ---
@@ -797,16 +808,14 @@ output/<dataset>/<model_tag>-reranker/
 
 | Script | Vai trò |
 |---|---|
-| `prepare_rerank_data.py` | Chuyển đổi dữ liệu từ retriever output sang format reranker |
+| `prepare_rerank_data.py` | `--mode train`: dữ liệu train reranker (mặc định chỉ query có positive trong top-depth) |
+| `rerank_pipeline.py` | `resolve` (suy data variant từ retriever), `pairs` (pairs đã lọc lịch sử), `fuse` (chọn α + fuse + metric) |
 | `train_reranker.sh` | Train cross-encoder reranker (5 bước, idempotent) |
-| `rerank.sh` | Rerank top-K + evaluate + in bảng so sánh |
+| `rerank.sh` | Retriever top-K → history filter → rerank → fuse → bảng so sánh |
 
-**`prepare_rerank_data.py`** — hai mode:
-
-| Mode | Input | Output |
-|---|---|---|
-| `train` | `train.jsonl` + `train_rank.trec` + `corpus.jsonl` | `reranker_train.jsonl` (query + pos + hard negs) |
-| `infer` | `test.jsonl` + `test_rank.trec` + `corpus.jsonl` | flat pairs jsonl (1 dòng / (query, candidate)) |
+**Data variant:** `train_reranker.sh`/`rerank.sh` đọc `data_variant` trong `train_config.json` của retriever để
+dùng query valid/test đúng format (vd. Sports `cs5-aug` → context 5 item). Query train mặc định lấy bản augmented
+tương ứng (`beauty-aug`, `sports-cs5-aug`, ...). Retriever format v2 chưa được hỗ trợ.
 
 ---
 
@@ -815,31 +824,41 @@ output/<dataset>/<model_tag>-reranker/
 **`train_reranker.sh`:**
 
 ```
-./train_reranker.sh <dataset> [--model MODEL] [--tag RTAG]
-                               [--depth N] [--group-size N] [--epochs N]
+./train_reranker.sh <dataset> [--model MODEL] [--tag RTAG] [--query-variant V]
+                               [--depth N] [--group-size N] [--epochs N] [--lr LR]
+                               [--keep-out-of-pool] [--prep-only]
 ```
 
 | Tham số | Mặc định | Ghi chú |
 |---|---|---|
 | `--model` | `Qwen/Qwen3-Embedding-0.6B` | Base model (khuyến nghị dùng cùng với retriever) |
 | `--tag RTAG` | `""` | Tag retriever đã train (ví dụ: `aug-5`); để trống = standard model |
-| `--depth N` | `100` | Số candidates/query để mine hard negatives |
+| `--query-variant V` | `auto` | `auto` = query augmented cùng format retriever; `none` = 1 query/user; hoặc tên variant |
+| `--depth N` | `100` | Số candidates/query làm pool hard negatives |
 | `--group-size N` | `8` | 1 pos + (N-1) hard negs mỗi query khi train |
 | `--epochs N` | `3` | Số training epochs |
+| `--lr LR` | `1e-4` | Learning rate |
+| `--keep-out-of-pool` | tắt | Giữ cả query có positive ngoài pool (hành vi cũ — làm reranker kém hơn retriever) |
+| `--prep-only` | tắt | Chỉ chạy bước 1-4 (dữ liệu), không train |
 
 **`rerank.sh`:**
 
 ```
-./rerank.sh <dataset> [--model MODEL] [--tag RTAG] [--split SPLIT]
-            [--retriever-trec FILE] [--reranker-ckpt DIR]
+./rerank.sh <dataset> [--model MODEL] [--tag RTAG] [--query-variant V] [--split SPLIT]
+            [--reranker-ckpt DIR] [--alpha A] [--valid-sample N] [--all-queries]
+            [--batch-size N] [--force]
 ```
 
 | Tham số | Mặc định | Ghi chú |
 |---|---|---|
-| `--tag RTAG` | `""` | Phải khớp với `--tag` khi chạy `train_reranker.sh` |
+| `--tag RTAG`, `--query-variant V` | `""`, `auto` | Phải khớp với lúc chạy `train_reranker.sh` |
 | `--split` | `test` | `valid` hoặc `test` |
-| `--retriever-trec FILE` | auto | Override trec file (mặc định tự tìm từ `eval_<split>_best.txt`) |
-| `--reranker-ckpt DIR` | final model | Override checkpoint cụ thể (ví dụ: debug checkpoint-500) |
+| `--reranker-ckpt DIR` | final model | Checkpoint cụ thể (ví dụ: `.../checkpoint-5000`) |
+| `--alpha A` | chọn trên valid | Trọng số retriever khi fuse (1 = chỉ retriever, 0 = chỉ reranker) |
+| `--valid-sample N` | `2000` | Số query valid (có positive trong top-K) dùng để chọn α |
+| `--all-queries` | tắt | Rerank mọi query. Mặc định chỉ query có positive trong top-K — metric trùng với chạy đủ (query còn lại mọi hệ thống đều miss), nhanh ~3.5× |
+| `--batch-size N` | `256` | Batch inference |
+| `--force` | tắt | Tạo lại pairs + scores (giữ cache retriever trec) |
 
 ---
 
@@ -848,18 +867,18 @@ output/<dataset>/<model_tag>-reranker/
 ```bash
 source tevatron-env/bin/activate
 
-# Điều kiện tiên quyết: retriever đã train và eval xong
-./train.sh beauty
-./eval.sh beauty
+# Điều kiện tiên quyết: retriever đã train
+./train.sh beauty --data-variant aug --tag aug-5     # hoặc retriever sẵn có
 
-# Bước 1: Train reranker (~30-40 phút)
-./train_reranker.sh beauty
+# Bước 1: Train reranker (Beauty, query augmented: ~61K query, ~6.5 giờ trên RTX 3090 Ti)
+./train_reranker.sh beauty --tag aug-5
 
-# Bước 2: Rerank + evaluate
-./rerank.sh beauty
+# Bước 2: Rerank + fuse + evaluate (~50 phút test + ~15 phút valid để chọn α)
+./rerank.sh beauty --tag aug-5
 ```
 
-Có thể chạy lại `train_reranker.sh` an toàn sau khi fix lỗi — các bước đã hoàn thành (corpus cache, train query embeddings, train_rank.trec) sẽ bị skip tự động.
+Có thể chạy lại cả hai script an toàn — các bước đã hoàn thành (corpus/query embeddings, trec, pairs, scores)
+được bỏ qua tự động.
 
 ---
 
@@ -867,35 +886,46 @@ Có thể chạy lại `train_reranker.sh` an toàn sau khi fix lỗi — các b
 
 | Tham số | Giá trị | Ghi chú |
 |---|---|---|
-| Kiến trúc | `AutoModelForSequenceClassification` | Cross-encoder, output 1 score/pair |
-| LoRA rank / alpha | 16 / 64 | Giống retriever |
+| Kiến trúc | `AutoModelForSequenceClassification` | Cross-encoder, output 1 score/pair (head `score` train toàn bộ) |
+| LoRA rank / alpha / dropout | 16 / 64 / 0.05 | Giống retriever |
 | LoRA target | q,k,v,o,down,up,gate | Toàn bộ attention + FFN |
-| `per_device_train_batch_size` | 2 | Số queries per GPU per step |
-| `gradient_accumulation_steps` | 16 | Effective batch = 32 queries/step |
-| `train_group_size` | 8 | 1 pos + 7 hard negs mỗi query |
-| Input max length | 256 tokens | `[query_history; item_title]` ghép lại |
-| Learning rate | 1e-4 | |
-| Warmup steps | 100 | |
+| `train_group_size` | 8 | 1 pos + 7 negatives; loss = cross-entropy trên 8 score, target = positive |
+| Negatives | lấy đều từ top-depth (trừ positive) | Mỗi query xáo pool 1 lần (seed cố định), epoch e lấy vị trí 7e…7e+6 → 21 negatives khác nhau qua 3 epoch |
+| Input | `Query: <history> </s> Passage: <title>` + EOS, max 256 tokens | Score lấy tại token EOS |
+| Learning rate | 1e-4, warmup 100, linear decay | AdamW, weight decay 0 |
+| Effective batch | 32 queries/step | xem bảng dưới |
 | Save steps | 500 | |
-| `--append_eos_token` | bật | Thêm EOS cuối chuỗi làm anchor cho classification head |
-| `num_labels` | 1 | Single regression score — **bắt buộc** để loss tính đúng |
+| `num_labels` | 1 | Single score — **bắt buộc** để loss tính đúng |
 
-**Auto-adjust batch size theo model:**
+**Auto-adjust batch size (cùng effective batch 32, cùng kết quả toán học):**
 
-| Model | `per_device_batch` | `grad_accum` |
-|---|---|---|
-| Qwen3-0.6B *(mặc định)* | 2 | 16 |
-| Qwen3-4B, Qwen2.5-3B, Llama-3.2-* | 1 | 32 |
+| Model / GPU | `per_device_batch` | `grad_accum` | Gradient checkpointing |
+|---|---|---|---|
+| Qwen3-0.6B, GPU ≥ 20 GB | 4 | 8 | tắt (nhanh hơn ~33%) |
+| Qwen3-0.6B, GPU < 20 GB | 2 | 16 | bật |
+| Qwen3-4B, Qwen2.5-3B, Llama-3.2-* | 1 | 32 | bật |
 
 ---
 
 ### 5.6 Ghi chú kỹ thuật
 
+> **⚠️ Kết quả rankLLaMA trước 2026-09-26 không hợp lệ.** Qwen3 config có `pad_token_id = None` → Tevatron
+> đặt `0`, lệch với pad thật của tokenizer (`<|endoftext|>`) → `AutoModelForSequenceClassification` chấm điểm tại
+> vị trí pad cuối batch → score gần như hằng số (94.8% cặp test cùng một giá trị), ở **cả train lẫn inference**.
+> Đã fix trong `tevatron/src/tevatron/reranker/driver/{train,rerank}.py`. Mọi reranker train trước ngày này
+> phải train lại. Chi tiết + bằng chứng: [diag/README.md](diag/README.md). Qwen3-Reranker (§5.7) không bị ảnh hưởng.
+
 **Hard negatives từ retriever:** Training data của reranker dùng top-K retrieved items (trừ positive) làm hard negatives. Đây là những items retriever nghĩ là relevant nhưng không phải ground truth — reranker phải học phân biệt fine-grained, khó hơn random negatives nhiều.
+
+**Chỉ giữ query có positive trong top-K (mặc định từ 2026-09-27):** Với Beauty `aug-5`, 58% query train có positive
+nằm ngoài top-100. Giữ các nhóm này (positive xa lịch sử hơn cả 7 negatives) dạy reranker "chọn item ít giống
+lịch sử nhất", ngược với tình huống lúc test. Bỏ chúng: NDCG@10 raw 0.0336 → 0.0561 dù chỉ còn 42% dữ liệu
+(đối chứng cùng cỡ dữ liệu ngẫu nhiên: 0.0252). `prepare_rerank_data.py --mode train` giờ bỏ mặc định;
+`--keep-out-of-pool` để quay về hành vi cũ. Chi tiết: [diag/README.md](diag/README.md).
 
 **`num_labels=1` trong `build()`:** Tevatron's `RerankerModel.build()` gốc không pass `num_labels`, gây `AutoModelForSequenceClassification` mặc định 2 nhãn → reshape sai (`[batch, group×2]` thay vì `[batch, group]`) → loss sai. Đã fix tại `tevatron/src/tevatron/reranker/driver/train.py`.
 
-**Padding side:** Retriever dùng **left padding** (causal LLM + last-token pooling trên query/passage riêng lẻ). Reranker dùng **right padding** (sequence classification — HF tự tìm last non-padding token để classify).
+**Padding side:** Retriever dùng **left padding** (causal LLM + last-token pooling trên query/passage riêng lẻ). Reranker dùng **right padding** (sequence classification — HF tự tìm last non-padding token để classify, **dựa trên `config.pad_token_id`** — giá trị này phải bằng `tokenizer.pad_token_id`, xem cảnh báo ở đầu mục).
 
 **Corpus cache:** `train_reranker.sh` tự tìm và reuse corpus embedding `.pkl` đã được `eval.sh` tạo ra — không encode lại corpus (~12K items Beauty).
 
@@ -1248,7 +1278,15 @@ Thêm kết quả SASRec thủ công: tạo file `output/<dataset>/sasrec/eval_t
 
 ### Cần làm
 - [ ] Chạy thực nghiệm đầy đủ (augmented, window size ablation) và ghi lại kết quả so sánh
-- [ ] Đánh giá Qwen3-Reranker fine-tuned và so sánh với rankLLaMA
+- [x] Fix pad bug rankLLaMA + chẩn đoán negative sampling (`diag/`, 2026-09-26) — bỏ query có positive ngoài pool
+- [x] Reranker (Beauty, 2026-09-27): augmented train data + fusion với retriever (α chọn trên valid) →
+      NDCG@10 0.0708 (+14.7% so với retriever + history filter 0.0617). Khử false negatives (collaborative) và
+      SimANS không giúp. Chi tiết: [diag/README.md](diag/README.md)
+- [x] Tích hợp pipeline reranker mới (data augmented + fusion) vào `train_reranker.sh`/`rerank.sh`; chạy cho
+      Sports/Toys (2026-09-30): fused NDCG@10 Beauty 0.0721 / Sports 0.0423 / Toys 0.0814 (+13–17% so với
+      retriever + filter). Reranker 4B không tốt hơn 0.6B. Bảng tổng hợp: [paper_report.md](paper_report.md) §0
+- [ ] Cập nhật Table 2 của `paper/paper_draft.md` với hàng FADE + Reranker; kiểm tra lại hàng LlamaRec† (Beauty)
+- [ ] Đánh giá Qwen3-Reranker fine-tuned và so sánh với rankLLaMA (rankLLaMA cũ không hợp lệ — cần số mới)
 - [ ] Áp dụng history filter (A1) vào reranker input (`prepare_rerank_data.py`) — hiện chỉ mới có ở phía
       retriever evaluation
 - [ ] Tích hợp `--filter-history` trực tiếp vào `eval.sh` thay vì chạy script rời `eval_filter.py`

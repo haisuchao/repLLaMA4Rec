@@ -131,6 +131,10 @@ def main():
         num_labels=1,
         attn_implementation="flash_attention_2",
     )
+    # Qwen3 config không có pad_token_id → modeling.py đặt 0, lệch với pad thật của tokenizer
+    # (<|endoftext|>) → HF SequenceClassification chấm điểm tại vị trí pad cuối batch (hằng số).
+    hf_base = model.hf_model.get_base_model() if hasattr(model.hf_model, 'get_base_model') else model.hf_model
+    hf_base.config.pad_token_id = tokenizer.pad_token_id
 
     train_dataset = RerankerTrainDataset(data_args)
     train_collator = RerankerTrainCollator(data_args, tokenizer)

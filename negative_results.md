@@ -92,6 +92,22 @@ Beauty/Sports, hoặc vì thiếu metadata director/actor). Data + code ML-1M v�
 
 ---
 
+## 6. rankLLaMA reranker (trước 2026-09-26) — kết quả không hợp lệ do bug, và cách lấy negative cũ phản tác dụng
+
+**Bug**: `config.pad_token_id` (0) lệch với pad của tokenizer (`<|endoftext|>`) → score gần như hằng số ở cả
+train lẫn inference. Reranker cũ (`output/beauty/qwen3-embedding-0.6b-aug-5-reranker`, NDCG@10 báo cáo 0.0387)
+thực chất giữ nguyên thứ tự retriever (Spearman trung vị 1.000). Chấm điểm đúng thì chỉ còn 0.0160. Đã fix.
+
+**Sau khi fix, cách tạo dữ liệu cũ vẫn phản tác dụng** (Beauty, retriever `aug-5`, retriever raw = 0.0391):
+negatives = top-100, giữ mọi query → NDCG@10 raw **0.0336** (kém retriever). Nguyên nhân: 58% query train có
+positive ngoài top-100. Bỏ các query đó → **0.0561**; bỏ thêm item lịch sử khỏi pool negatives → không giúp
+(0.0584 vs 0.0587 sau history filter). Chi tiết + các bảng: [diag/README.md](diag/README.md).
+
+**Kết luận**: không dùng lại checkpoint reranker cũ. `prepare_rerank_data.py` giờ mặc định bỏ query có positive
+ngoài pool. Giữ item lịch sử trong pool negatives.
+
+---
+
 ## Tóm tắt — KHÔNG cần làm lại trên máy mới
 
 | Hướng | Kết quả | Hành động khuyến nghị |
@@ -101,3 +117,4 @@ Beauty/Sports, hoặc vì thiếu metadata director/actor). Data + code ML-1M v�
 | v2 format (không aug) | Kém hơn baseline | Chỉ thử v2 khi có augmentation đi kèm |
 | Llama-3.2-1B (Sports) | Không học được | Bỏ qua trừ khi hồi sinh nhánh Llama |
 | ML-1M (toàn bộ) | Số liệu tốt nhưng ngoài scope paper | Không cần chạy thêm, không phải "thất bại" |
+| rankLLaMA reranker cũ | Bug pad → score hằng số; data cũ (giữ positive ngoài pool) kém cả retriever | Không dùng checkpoint cũ; train lại với `prepare_rerank_data.py` mới |

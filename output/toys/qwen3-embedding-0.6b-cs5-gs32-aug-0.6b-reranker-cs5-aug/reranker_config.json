@@ -1,0 +1,21 @@
+{
+  "dataset": "toys",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "reranker_model": "Qwen/Qwen3-Embedding-0.6B",
+  "retriever_dir": "./output/toys/qwen3-embedding-0.6b-cs5-gs32-aug-0.6b",
+  "retriever_label": "final",
+  "retriever_lora": "./output/toys/qwen3-embedding-0.6b-cs5-gs32-aug-0.6b",
+  "corpus_emb": "./output/toys/qwen3-embedding-0.6b-cs5-gs32-aug-0.6b/embeddings/corpus/final.pkl",
+  "eval_variant": "cs5-aug",
+  "query_variant": "cs5-aug",
+  "query_max_len": 128,
+  "depth": 100,
+  "keep_out_of_pool": false,
+  "train_queries": 51271,
+  "group_size": 8,
+  "epochs": 3,
+  "learning_rate": "1e-4",
+  "per_device_batch": 4,
+  "gradient_accumulation": 8,
+  "timestamp": "2026-09-30T00:31:58+07:00"
+}

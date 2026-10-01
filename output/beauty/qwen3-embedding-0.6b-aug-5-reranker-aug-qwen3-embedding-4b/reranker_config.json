@@ -1,0 +1,21 @@
+{
+  "dataset": "beauty",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "reranker_model": "Qwen/Qwen3-Embedding-4B",
+  "retriever_dir": "./output/beauty/qwen3-embedding-0.6b-aug-5",
+  "retriever_label": "final",
+  "retriever_lora": "./output/beauty/qwen3-embedding-0.6b-aug-5",
+  "corpus_emb": "./output/beauty/qwen3-embedding-0.6b-aug-5/embeddings/corpus/final.pkl",
+  "eval_variant": "",
+  "query_variant": "aug",
+  "query_max_len": 128,
+  "depth": 100,
+  "keep_out_of_pool": false,
+  "train_queries": 61556,
+  "group_size": 8,
+  "epochs": 3,
+  "learning_rate": "1e-4",
+  "per_device_batch": 1,
+  "gradient_accumulation": 32,
+  "timestamp": "2026-09-30T05:07:10+07:00"
+}

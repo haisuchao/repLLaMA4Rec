@@ -8,6 +8,7 @@ Mode train:
   Output: reranker_train.jsonl
   Format: {query_id, query, positive_passages, negative_passages}
           (negative_passages = hard negatives từ top retrieved, loại bỏ positive)
+          Mặc định chỉ giữ query có positive nằm trong top-depth (--keep-out-of-pool để giữ tất cả)
 
 Mode infer:
   Input:  <split>.jsonl + <split>_rank.trec + corpus.jsonl
@@ -66,6 +67,9 @@ def main():
     p.add_argument('--output',  required=True, help='Output jsonl path')
     p.add_argument('--depth',   type=int, default=100,
                    help='Số candidates tối đa mỗi query (mặc định: 100)')
+    p.add_argument('--keep-out-of-pool', action='store_true',
+                   help='[train] giữ cả query có positive ngoài top-depth (hành vi cũ). Mặc định bỏ: '
+                        'các nhóm này dạy reranker chọn item ít giống lịch sử nhất — xem diag/README.md')
     args = p.parse_args()
 
     print('Loading corpus ...', flush=True)
@@ -80,7 +84,7 @@ def main():
     retrieved = load_trec(args.trec)
     print(f'  {len(retrieved):,} queries have results')
 
-    n_written = n_skip = 0
+    n_written = n_skip = n_out_of_pool = 0
 
     with open(args.output, 'w') as out:
         for qid, q in tqdm(queries.items(), desc=f'[{args.mode}]'):
@@ -99,6 +103,9 @@ def main():
                 ]
                 if not valid_pos or not hard_negs:
                     n_skip += 1
+                    continue
+                if not args.keep_out_of_pool and not any(d in pos_ids for d in cands):
+                    n_out_of_pool += 1
                     continue
                 out.write(json.dumps({
                     'query_id':          qid,
@@ -124,6 +131,9 @@ def main():
     print(f'\nMode {args.mode}: {n_written:,} records → {args.output}')
     if n_skip:
         print(f'Skipped {n_skip} queries (no positive in corpus or no hard negatives)')
+    if n_out_of_pool:
+        print(f'Skipped {n_out_of_pool:,} queries có positive ngoài top-{args.depth} '
+              f'(dùng --keep-out-of-pool để giữ)')
 
 
 if __name__ == '__main__':

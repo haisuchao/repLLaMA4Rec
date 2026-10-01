@@ -21,7 +21,7 @@
 #     1. Reuse corpus embedding từ eval.sh (hoặc encode mới)
 #     2. Encode train queries với fine-tuned retriever
 #     3. FAISS search → train_rank.trec (hard negatives)
-#     4. prepare_rerank_data.py → reranker_train.jsonl
+#     4. prepare_rerank_data.py → reranker_train_inpool.jsonl
 #   Bước 5: Fine-tune Qwen3-Reranker với InfoNCE loss trên yes-logits
 #
 # Output:
@@ -86,7 +86,7 @@ RERANKER_OUT="${RETRIEVER_DIR}-${RERANKER_TAG}"
 TRAIN_QUERY_EMB="${SHARED_TRAIN_DIR}/train_queries.pkl"
 TRAIN_RANK_TXT="${SHARED_TRAIN_DIR}/train_rank.txt"
 TRAIN_RANK_TREC="${SHARED_TRAIN_DIR}/train_rank.trec"
-RERANKER_TRAIN_JSONL="${SHARED_TRAIN_DIR}/reranker_train.jsonl"
+RERANKER_TRAIN_JSONL="${SHARED_TRAIN_DIR}/reranker_train_inpool.jsonl"   # chỉ query có positive trong pool (prepare_rerank_data.py mặc định)
 
 # Eval batch size theo retriever model size
 case "${retriever_model}" in
